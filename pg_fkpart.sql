@@ -647,9 +647,9 @@ BEGIN
     IF NOT EXISTS (SELECT * FROM pg_table WHERE tablename=pgfkpart._partition)
     THEN pgfkpart._exec ($EXEC$SELECT pgfkpart._add_partition($$' || _nspname || '$$,
     $$' || _relname || '$$,
-    $$' || _partition || '$$,
-    $$' || _column_name || '=NEW.' || _foreign_column_name || '$$,
-    ''/tmp/pgfkpart_' || _relname || '$$)$EXEC$);
+    $$$EXEC$ || _partition || $EXEC$$$,
+    $$' || _column_name || '= $EXEC$ || NEW.' || _foreign_column_name || ' || $EXEC$$$,
+    $$/tmp/pgfkpart_' || _relname || '$$)$EXEC$);
     END;
     -- Insert in the partition table instead
     INSERT INTO _partition VALUES (NEW.*); 
