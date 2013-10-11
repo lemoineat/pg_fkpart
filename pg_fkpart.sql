@@ -556,7 +556,7 @@ BEGIN
 $BODY$
   LANGUAGE 'plpgsql';
 
-
+-- DROP TABLE IF EXISTS pgfkpart.partition;
 CREATE TABLE pgfkpart.partition
 (
   partitionid SERIAL NOT NULL,
@@ -607,14 +607,15 @@ BEGIN
   -- Get _column_name and _foreign_column_name
   SELECT column_name, foreign_column_name
   INTO _column_name, _foreign_column_name
-  FROM pgkfpart._foreign_key_definitions
-  WHERE table_name=_relname AND table_schema=_nspname;
+  FROM pgfkpart._foreign_key_definitions
+  WHERE table_name=_relname AND table_schema=_nspname
+    AND foreign_table_name=_foreignrelname AND foreign_table_schema=_foreignnspname;
   -- Execute _add_partition on all the rows of _foreignrelname
   EXECUTE 'SELECT pgfkpart._exec(
     $A$SELECT pgfkpart._add_partition($$' || _nspname || '$$,
     $$' || _relname || '$$,
-    $$' || _relname || '_p$A$ || _foreign_column_name || $A$$$,
-    $$' || _column_name || '=$A$ || _foreign_column_name || $A$$$,
+    $$' || _relname || '_p$A$ || ' || _foreign_column_name || ' || $A$$$,
+    $$' || _column_name || '=$A$ || ' ||  _foreign_column_name || ' || $A$$$,
     $$/tmp/pgfkpart_' || _relname || '$$)$A$
   )
   FROM ' || _foreignnspname || '.' || _foreignrelname;
@@ -622,11 +623,6 @@ BEGIN
   INSERT INTO pgfkpart.partition (table_schema, table_name, column_name, foreign_table_schema, foreign_table_name, foreign_column_name)
   VALUES (_nspname, _relname, _column_name, _foreignnspname, _foreignrelname, _foreign_column_name);
   -- Add a trigger to the main table
-  EXECUTE 'CREATE TRIGGER ' || _nspname || '.' || _relname || '_part_insert
-  BEFORE INSERT
-  ON ' || _nspname || '.' || _relname || '
-  FOR EACH ROW
-  EXECUTE PROCEDURE ' || _nspname || '.' || _relname || '_part_ins();';
   EXECUTE 'CREATE OR REPLACE FUNCTION ' || _nspname || '.' || _relname || '_part_ins()
   RETURNS trigger AS
   $A$
@@ -660,6 +656,11 @@ BEGIN
     RETURN NULL;
   END
   $A$ LANGUAGE plpgsql';
+  EXECUTE 'CREATE TRIGGER ' || _relname || '_part_insert
+  BEFORE INSERT
+  ON ' || _nspname || '.' || _relname || '
+  FOR EACH ROW
+  EXECUTE PROCEDURE ' || _nspname || '.' || _relname || '_part_ins();';
   -- Check indexes, constraints
   -- // TODO //
 END
@@ -688,7 +689,7 @@ BEGIN
   EXECUTE 'SELECT pgfkpart._exec(
     $A$SELECT pgfkpart._merge_partition($$' || _nspname || '$$,
     $$' || _relname || '$$,
-    $$' || _relname || '_p$A$ || _column_name || $A$$$, NULL, 
+    $$' || _relname || '_p$A$ || ' || _column_name || ' || $A$$$, NULL, 
     $$/tmp/pgfkpart_' || _relname || '$$)$A$
   )
   FROM ' || _nspname || '.' || _relname;
@@ -701,3 +702,4 @@ $BODY$ LANGUAGE 'plpgsql';
 COMMIT;
 
 
+select pgfkpart.partition_with_fk ('public', 'machinestatus', 'public', 'monitoredmachine');
