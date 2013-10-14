@@ -645,12 +645,12 @@ BEGIN
     INTO _partition;
     -- Check if the partition name has already been created. If not, create it
     IF NOT EXISTS (SELECT * FROM pg_table WHERE tablename=pgfkpart._partition)
-    THEN pgfkpart._exec ($EXEC$SELECT pgfkpart._add_partition($$' || _nspname || '$$,
+    THEN EXECUTE $EXEC$SELECT pgfkpart._add_partition($$' || _nspname || '$$,
     $$' || _relname || '$$,
     $$$EXEC$ || _partition || $EXEC$$$,
     $$' || _column_name || '= $EXEC$ || NEW.' || _foreign_column_name || ' || $EXEC$$$,
-    $$/tmp/pgfkpart_' || _relname || '$$)$EXEC$);
-    END;
+    $$/tmp/pgfkpart_' || _relname || '$$)$EXEC$;
+    END IF;
     -- Insert in the partition table instead
     INSERT INTO _partition VALUES (NEW.*); 
     RETURN NULL;
