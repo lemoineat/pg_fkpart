@@ -644,7 +644,10 @@ BEGIN
     SELECT pgfkpart._get_partition_name($$' || _relname || '$$, _column_value)
     INTO _partition;
     -- Check if the partition name has already been created. If not, create it
-    IF NOT EXISTS (SELECT * FROM pg_table WHERE tablename=pgfkpart._partition)
+    IF NOT EXISTS (SELECT * FROM pg_class t, pg_namespace s
+WHERE t.relname=_partition
+  AND t.relnamespace=s.oid
+  AND s.nspname=$pgfkpart$)
     THEN EXECUTE $EXEC$SELECT pgfkpart._add_partition($$' || _nspname || '$$,
     $$' || _relname || '$$,
     $$$EXEC$ || _partition || $EXEC$$$,
@@ -652,7 +655,8 @@ BEGIN
     $$/tmp/pgfkpart_' || _relname || '$$)$EXEC$;
     END IF;
     -- Insert in the partition table instead
-    INSERT INTO _partition VALUES (NEW.*); 
+    EXECUTE $EXEC$INSERT INTO pgfkpart.$EXEC$ || _partition || $EXEC$ VALUES ($1.*)$EXEC$
+      USING NEW;
     RETURN NULL;
   END
   $A$ LANGUAGE plpgsql';
@@ -661,8 +665,6 @@ BEGIN
   ON ' || _nspname || '.' || _relname || '
   FOR EACH ROW
   EXECUTE PROCEDURE ' || _nspname || '.' || _relname || '_part_ins();';
-  -- Check indexes, constraints
-  -- // TODO //
 END
 $BODY$ LANGUAGE 'plpgsql';
 
@@ -702,9 +704,3 @@ END
 $BODY$ LANGUAGE 'plpgsql';
 
 COMMIT;
-
-
-select pgfkpart.partition_with_fk ('public', 'machinestatus', 'public', 'monitoredmachine');
-select pgfkpart.unpartition_with_fk ('public', 'machinestatus');
-
-select pgfkpart.partition_with_fk ('public', 'reasonslot', 'public', 'machine');
