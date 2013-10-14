@@ -235,7 +235,7 @@ DECLARE
   _temp_file ALIAS FOR $3;
   _query TEXT;
 BEGIN
-  _query = 'COPY pgfkpart.' || _relname || ' FROM ''' || _temp_file || '''';
+  _query = 'COPY ' || _nspname ||  '.' || _relname || ' FROM ''' || _temp_file || '''';
 
   RETURN _query;
 END;
@@ -280,7 +280,7 @@ BEGIN
   RAISE NOTICE 'add_partition: %', _def;
   EXECUTE _def;
 
-  SELECT pgfkpart._get_import_query(_nspname, _partname, _temp_file)
+  SELECT pgfkpart._get_import_query('pgfkpart', _partname, _temp_file)
     INTO _def;
   _def = _def || ';';
   RAISE NOTICE 'add_partition: %', _def;
@@ -324,7 +324,7 @@ DECLARE
   _r RECORD;
   _def TEXT;
 BEGIN
-  SELECT pgfkpart._get_export_query(_nspname, _partname, '1 = 1', _temp_file)
+  SELECT pgfkpart._get_export_query('pgfkpart', _partname, '1 = 1', _temp_file)
     INTO _def;
   _def = _def || ';';
   RAISE NOTICE 'merge_partition: %', _def;
@@ -681,18 +681,20 @@ DECLARE
   _foreign_column_name NAME;
 BEGIN
   -- Get the column name
-  SELECT column_name
-  INTO _column_name
+  SELECT column_name, foreign_table_schema, foreign_table_name, foreign_column_name
+  INTO _column_name, _foreignnspname, _foreignrelname, _foreign_column_name
   FROM pgfkpart.partition
   WHERE table_schema=_nspname AND table_name=_relname;
+  -- Remove the trigger
+  EXECUTE 'DROP FUNCTION ' || _nspname || '.' || _relname || '_part_ins() CASCADE';
   -- Merge all the data
   EXECUTE 'SELECT pgfkpart._exec(
     $A$SELECT pgfkpart._merge_partition($$' || _nspname || '$$,
     $$' || _relname || '$$,
-    $$' || _relname || '_p$A$ || ' || _column_name || ' || $A$$$, NULL, 
+    $$' || _relname || '_p$A$ || ' || _foreign_column_name || ' || $A$$$, NULL, 
     $$/tmp/pgfkpart_' || _relname || '$$)$A$
   )
-  FROM ' || _nspname || '.' || _relname;
+  FROM ' || _foreignnspname || '.' || _foreignrelname;
   -- Update pgfkpart.partition
   DELETE FROM pgfkpart.partition
   WHERE table_schema=_nspname AND table_name=_relname;
@@ -703,3 +705,6 @@ COMMIT;
 
 
 select pgfkpart.partition_with_fk ('public', 'machinestatus', 'public', 'monitoredmachine');
+select pgfkpart.unpartition_with_fk ('public', 'machinestatus');
+
+select pgfkpart.partition_with_fk ('public', 'reasonslot', 'public', 'machine');
