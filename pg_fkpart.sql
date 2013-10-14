@@ -596,14 +596,34 @@ CREATE OR REPLACE FUNCTION pgfkpart.partition_with_fk (
   NAME
 ) RETURNS void
 AS $BODY$
+BEGIN
+  EXECUTE pgfkpart.partition_with_fk ($1, $2, $3, $4, NULL);
+END
+$BODY$
+  LANGUAGE 'plpgsql';
+
+
+CREATE OR REPLACE FUNCTION pgfkpart.partition_with_fk (
+  NAME,
+  NAME,
+  NAME,
+  NAME,
+  TEXT
+) RETURNS void
+AS $BODY$
 DECLARE
   _nspname ALIAS FOR $1;
   _relname ALIAS FOR $2;
   _foreignnspname ALIAS FOR $3;
   _foreignrelname ALIAS FOR $4;
+  _tmpfilepath ALIAS FOR $5;
   _column_name NAME;
   _foreign_column_name NAME;
 BEGIN
+  -- Complete _tmpfilepath if unknown
+  IF _tmpfilepath IS NULL
+  THEN _tmpfilepath := '/tmp/pgfkpart_' || _relname;
+  END IF;
   -- Get _column_name and _foreign_column_name
   SELECT column_name, foreign_column_name
   INTO _column_name, _foreign_column_name
@@ -616,7 +636,7 @@ BEGIN
     $$' || _relname || '$$,
     $$' || _relname || '_p$A$ || ' || _foreign_column_name || ' || $A$$$,
     $$' || _column_name || '=$A$ || ' ||  _foreign_column_name || ' || $A$$$,
-    $$/tmp/pgfkpart_' || _relname || '$$)$A$
+    $$' || _tmpfilepath || '$$)$A$
   )
   FROM ' || _foreignnspname || '.' || _foreignrelname;
   -- Store the table was partitioned
@@ -652,7 +672,7 @@ WHERE t.relname=_partition
     $$' || _relname || '$$,
     $$$EXEC$ || _partition || $EXEC$$$,
     $$' || _column_name || '= $EXEC$ || NEW.' || _foreign_column_name || ' || $EXEC$$$,
-    $$/tmp/pgfkpart_' || _relname || '$$)$EXEC$;
+    $$' || _tmpfilepath || '$$)$EXEC$;
     END IF;
     -- Insert in the partition table instead
     EXECUTE $EXEC$INSERT INTO pgfkpart.$EXEC$ || _partition || $EXEC$ VALUES ($1.*)$EXEC$
@@ -674,14 +694,32 @@ CREATE OR REPLACE FUNCTION pgfkpart.unpartition_with_fk (
   NAME
 ) RETURNS void
 AS $BODY$
+BEGIN
+  EXECUTE pgfkpart.unpartition_with_fk ($1, $2, NULL);
+END
+$BODY$
+  LANGUAGE 'plpgsql';
+
+
+CREATE OR REPLACE FUNCTION pgfkpart.unpartition_with_fk (
+  NAME,
+  NAME,
+  TEXT
+) RETURNS void
+AS $BODY$
 DECLARE
   _nspname ALIAS FOR $1;
   _relname ALIAS FOR $2;
+  _tmpfilepath ALIAS FOR $3;
   _foreignnspname NAME;
   _foreignrelname NAME;
   _column_name NAME;
   _foreign_column_name NAME;
 BEGIN
+  -- Complete _tmpfilepath if unknown
+  IF _tmpfilepath IS NULL
+  THEN _tmpfilepath := '/tmp/pgfkpart_' || _relname;
+  END IF;
   -- Get the column name
   SELECT column_name, foreign_table_schema, foreign_table_name, foreign_column_name
   INTO _column_name, _foreignnspname, _foreignrelname, _foreign_column_name
@@ -694,7 +732,7 @@ BEGIN
     $A$SELECT pgfkpart._merge_partition($$' || _nspname || '$$,
     $$' || _relname || '$$,
     $$' || _relname || '_p$A$ || ' || _foreign_column_name || ' || $A$$$, NULL, 
-    $$/tmp/pgfkpart_' || _relname || '$$)$A$
+    $$' || _tmpfilepath || '$$)$A$
   )
   FROM ' || _foreignnspname || '.' || _foreignrelname;
   -- Update pgfkpart.partition
