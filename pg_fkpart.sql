@@ -644,13 +644,14 @@ BEGIN
   INSERT INTO pgfkpart.partition (table_schema, table_name, column_name, foreign_table_schema, foreign_table_name, foreign_column_name)
   VALUES (_nspname, _relname, _column_name, _foreignnspname, _foreignrelname, _foreign_column_name);
   -- Add a trigger to the main table
-  EXECUTE 'CREATE OR REPLACE FUNCTION ' || _nspname || '.' || _relname || '_part_ins()
+  EXECUTE 'CREATE OR REPLACE FUNCTION ' || _nspname || '.' || _relname || '_child_insert ()
   RETURNS trigger AS
   $A$
   DECLARE
     _partition NAME;
     _column_name NAME;
     _column_value TEXT;
+    _r ' || _relname || '%ROWTYPE;
   BEGIN
     -- Get the column name
     SELECT column_name
@@ -676,16 +677,33 @@ WHERE t.relname=_partition
     $$' || _tmpfilepath || '$$)$EXEC$;
     END IF;
     -- Insert in the partition table instead
-    EXECUTE $EXEC$INSERT INTO pgfkpart.$EXEC$ || _partition || $EXEC$ VALUES ($1.*)$EXEC$
+    EXECUTE $EXEC$INSERT INTO pgfkpart.$EXEC$ || _partition || $EXEC$ VALUES ($1.*) RETURNING *$EXEC$
+      INTO _r
       USING NEW;
-    RETURN NULL;
+    RETURN _r;
   END
   $A$ LANGUAGE plpgsql';
-  EXECUTE 'CREATE TRIGGER ' || _relname || '_part_insert
+  EXECUTE 'CREATE TRIGGER ' || _relname || '_before_insert
   BEFORE INSERT
   ON ' || _nspname || '.' || _relname || '
   FOR EACH ROW
-  EXECUTE PROCEDURE ' || _nspname || '.' || _relname || '_part_ins();';
+  EXECUTE PROCEDURE ' || _nspname || '.' || _relname || '_child_insert();';
+  EXECUTE 'CREATE OR REPLACE FUNCTION ' || _nspname || '.' || _relname || '_parent_remove ()
+  RETURNS trigger AS
+  $A$
+  DECLARE
+    _r ' || _relname || '%ROWTYPE;
+  BEGIN
+    DELETE FROM ONLY ' || _relname || ' WHERE ' || _relname || 'id = NEW.' || _relname || 'id 
+    RETURNING * INTO _r;
+    RETURN _r;
+  END
+  $A$ LANGUAGE plpgsql';
+  EXECUTE 'CREATE TRIGGER ' || _relname || '_after_insert
+  AFTER INSERT
+  ON ' || _nspname || '.' || _relname || '
+  FOR EACH ROW
+  EXECUTE PROCEDURE ' || _nspname || '.' || _relname || '_parent_remove();';
 END
 $BODY$ LANGUAGE 'plpgsql';
 
@@ -726,8 +744,9 @@ BEGIN
   INTO _column_name, _foreignnspname, _foreignrelname, _foreign_column_name
   FROM pgfkpart.partition
   WHERE table_schema=_nspname AND table_name=_relname;
-  -- Remove the trigger
-  EXECUTE 'DROP FUNCTION ' || _nspname || '.' || _relname || '_part_ins() CASCADE';
+  -- Remove the triggers
+  EXECUTE 'DROP FUNCTION ' || _nspname || '.' || _relname || '_child_insert() CASCADE';
+  EXECUTE 'DROP FUNCTION ' || _nspname || '.' || _relname || '_parent_remove() CASCADE';
   -- Merge all the data
   EXECUTE 'SELECT pgfkpart._exec(
     $A$SELECT pgfkpart._merge_partition($$' || _nspname || '$$,
