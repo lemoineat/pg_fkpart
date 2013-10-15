@@ -135,7 +135,8 @@ DECLARE
   _indexdef TEXT;
 BEGIN
   FOR _r IN SELECT indexdef,
-                   replace(regexp_replace(regexp_replace(indexdef, '.*\(', ''), '\).*', ''), ', ', '_') AS colname
+                   replace(regexp_replace(regexp_replace(indexdef, '.*\(', ''), '\).*', ''), ', ', '_') AS colname,
+                   indexname
               FROM pg_indexes
              WHERE schemaname = _nspname
                AND tablename = _relname
@@ -150,7 +151,7 @@ BEGIN
                       AND i.indexrelid = c2.oid
                    ) LOOP
 
-    _indexname = _partname || '_' || _r.colname || '_idx';
+    _indexname = regexp_replace (_r.indexname, '^' || _relname, _partname);
 
     _indexdef = _r.indexdef;
     _indexdef = regexp_replace(_indexdef, 'INDEX .* ON ', 'INDEX ' || _indexname || ' ON ');
@@ -667,7 +668,7 @@ BEGIN
     IF NOT EXISTS (SELECT * FROM pg_class t, pg_namespace s
 WHERE t.relname=_partition
   AND t.relnamespace=s.oid
-  AND s.nspname=$pgfkpart$)
+  AND s.nspname=$$pgfkpart$$)
     THEN EXECUTE $EXEC$SELECT pgfkpart._add_partition($$' || _nspname || '$$,
     $$' || _relname || '$$,
     $$$EXEC$ || _partition || $EXEC$$$,
