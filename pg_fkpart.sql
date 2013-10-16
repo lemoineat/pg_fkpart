@@ -731,18 +731,12 @@ DECLARE
   _tmpfilepath ALIAS FOR $3;
   _foreignnspname NAME;
   _foreignrelname NAME;
-  _column_name NAME;
   _foreign_column_name NAME;
 BEGIN
   -- Complete _tmpfilepath if unknown
   IF _tmpfilepath IS NULL
   THEN _tmpfilepath := '/tmp/pgfkpart_' || _relname;
   END IF;
-  -- Get the column name
-  SELECT column_name, foreign_table_schema, foreign_table_name, foreign_column_name
-  INTO _column_name, _foreignnspname, _foreignrelname, _foreign_column_name
-  FROM pgfkpart.partition
-  WHERE table_schema=_nspname AND table_name=_relname;
   -- Remove the triggers
   EXECUTE 'DROP FUNCTION IF EXISTS ' || _nspname || '.' || _relname || '_child_insert() CASCADE';
   EXECUTE 'DROP FUNCTION IF EXISTS ' || _nspname || '.' || _relname || '_parent_remove() CASCADE';
