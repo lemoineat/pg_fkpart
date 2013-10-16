@@ -733,7 +733,6 @@ DECLARE
   _foreignrelname NAME;
   _column_name NAME;
   _foreign_column_name NAME;
-  _r RECORD;
 BEGIN
   -- Complete _tmpfilepath if unknown
   IF _tmpfilepath IS NULL
