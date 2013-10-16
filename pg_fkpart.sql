@@ -134,29 +134,28 @@ DECLARE
   _indexname NAME;
   _indexdef TEXT;
 BEGIN
-  FOR _r IN SELECT indexdef,
-                   replace(regexp_replace(regexp_replace(indexdef, '.*\(', ''), '\).*', ''), ', ', '_') AS colname,
-                   indexname
-              FROM pg_indexes
-             WHERE schemaname = _nspname
-               AND tablename = _relname
-               AND indexname IN (
-                   SELECT c2.relname
-                     FROM pg_namespace n, pg_class c, pg_index i, pg_class c2
-                    WHERE n.nspname = _nspname
-                      AND c.relname = _relname
-                      AND n.oid = c.relnamespace
-                      AND c.oid = i.indrelid
-                      AND i.indisprimary <> true
-                      AND i.indexrelid = c2.oid
-                   ) LOOP
-
+  FOR _r IN SELECT idxs.indexname, idxs.indexdef, idx.indisunique, idx.indimmediate
+FROM pg_indexes idxs
+INNER JOIN pg_class cls2 ON (idxs.indexname=cls2.relname)
+INNER JOIN pg_index idx ON (idx.indexrelid=cls2.oid)
+INNER JOIN pg_class cls ON (cls.oid=idx.indrelid)
+INNER JOIN pg_namespace nsp ON (nsp.oid=cls.relnamespace)
+WHERE nsp.nspname=_nspname
+  AND cls.relname=_relname
+  AND idx.indisprimary <> true
+  LOOP
     _indexname = regexp_replace (_r.indexname, '^' || _relname, _partname);
-
-    _indexdef = _r.indexdef;
-    _indexdef = regexp_replace(_indexdef, 'INDEX .* ON ', 'INDEX ' || _indexname || ' ON ');
-    _indexdef = replace(_indexdef, ' ON ' || _relname, ' ON pgfkpart.' || _partname);
-    
+    IF _r.indisunique THEN
+      _indexdef = 'ALTER TABLE pgfkpart.' || _partname || '
+      ADD CONSTRAINT ' || _indexname || ' UNIQUE' ||
+      substring (_r.indexdef from '\(.*\)');
+      IF NOT _r.indimmediate THEN
+        _indexdef = _indexdef || ' DEFERRABLE INITIALLY DEFERRED';
+      END IF;
+    ELSE
+      _indexdef = regexp_replace(_r.indexdef, 'INDEX .* ON ', 'INDEX ' || _indexname || ' ON ');
+      _indexdef = replace(_indexdef, ' ON ' || _relname, ' ON pgfkpart.' || _partname);      
+    END IF;
     RETURN NEXT _indexdef;
   END LOOP;
 
@@ -734,6 +733,7 @@ DECLARE
   _foreignrelname NAME;
   _column_name NAME;
   _foreign_column_name NAME;
+  _r RECORD;
 BEGIN
   -- Complete _tmpfilepath if unknown
   IF _tmpfilepath IS NULL
@@ -745,16 +745,19 @@ BEGIN
   FROM pgfkpart.partition
   WHERE table_schema=_nspname AND table_name=_relname;
   -- Remove the triggers
-  EXECUTE 'DROP FUNCTION ' || _nspname || '.' || _relname || '_child_insert() CASCADE';
-  EXECUTE 'DROP FUNCTION ' || _nspname || '.' || _relname || '_parent_remove() CASCADE';
+  EXECUTE 'DROP FUNCTION IF EXISTS ' || _nspname || '.' || _relname || '_child_insert() CASCADE';
+  EXECUTE 'DROP FUNCTION IF EXISTS ' || _nspname || '.' || _relname || '_parent_remove() CASCADE';
   -- Merge all the data
   EXECUTE 'SELECT pgfkpart._exec(
     $A$SELECT pgfkpart._merge_partition($$' || _nspname || '$$,
     $$' || _relname || '$$,
-    $$' || _relname || '_p$A$ || ' || _foreign_column_name || ' || $A$$$, NULL, 
+    $$$A$ || t.relname || $A$$$, NULL, 
     $$' || _tmpfilepath || '$$)$A$
   )
-  FROM ' || _foreignnspname || '.' || _foreignrelname;
+  FROM pg_class t, pg_namespace s 
+  WHERE t.relname ~* $REGEX$^' || _relname || '_p\d*$$REGEX$ 
+    AND t.relnamespace=s.oid
+    AND s.nspname=$$pgfkpart$$';
   -- Update pgfkpart.partition
   DELETE FROM pgfkpart.partition
   WHERE table_schema=_nspname AND table_name=_relname;
