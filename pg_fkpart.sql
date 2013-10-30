@@ -19,22 +19,30 @@
 --
 CREATE SCHEMA pgfkpart;
 
-BEGIN;
+-- TODO:
+-- manage the tables with a primary key which is not _table_name || 'id'
 
+
+BEGIN;
 
 --
 -- pgfkpart._foreign_key_definitions view
 --
+DROP VIEW IF EXISTS pgfkpart._foreign_key_definitions;
 CREATE OR REPLACE VIEW pgfkpart._foreign_key_definitions AS
 SELECT
     tc.constraint_name, tc.table_schema, tc.table_name, kcu.column_name,
     ccu.table_schema AS foreign_table_schema,
     ccu.table_name AS foreign_table_name,
-    ccu.column_name AS foreign_column_name 
+    ccu.column_name AS foreign_column_name,
+    rc.match_option,
+    rc.update_rule,
+    rc.delete_rule
 FROM 
     information_schema.table_constraints AS tc 
     JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name
     JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = tc.constraint_name
+    LEFT OUTER JOIN information_schema.referential_constraints AS rc ON tc.constraint_name = rc.constraint_name
 WHERE constraint_type = 'FOREIGN KEY';
 
 
@@ -573,6 +581,25 @@ WITH (
   OIDS=FALSE
 );
 
+-- Reference to the foreign keys that were 'partitioned'
+-- DROP TABLE IF EXISTS pgfkpart.partforeignkey
+CREATE TABLE pgfkpart.partforeignkey
+(
+  partforeignkeyid SERIAL NOT NULL,
+  constraint_name NAME NOT NULL,
+  table_schema NAME NOT NULL,
+  table_name NAME NOT NULL,
+  column_name NAME NOT NULL,
+  foreign_table_schema NAME NOT NULL,
+  foreign_table_name NAME NOT NULL,
+  foreign_column_name NAME NOT NULL,
+  match_option TEXT NOT NULL,
+  update_rule TEXT NOT NULL,
+  delete_rule TEXT NOT NULL
+)
+WITH (
+  OIDS=FALSE
+);
 
 CREATE OR REPLACE FUNCTION pgfkpart._get_partition_name (
   NAME,
@@ -584,6 +611,46 @@ DECLARE
   _column_value ALIAS FOR $2;
 BEGIN
   RETURN _relname || '_p' || _column_value;
+END
+$BODY$
+  LANGUAGE 'plpgsql';
+
+
+CREATE OR REPLACE FUNCTION pgfkpart._add_partition_with_fk (
+  NAME,
+  NAME,
+  TEXT,
+  TEXT,
+  TEXT
+) RETURNS BOOLEAN
+AS $BODY$
+DECLARE
+  _nspname ALIAS FOR $1;
+  _relname ALIAS FOR $2;
+  _column_value ALIAS FOR $3;
+  _cond ALIAS FOR $4;
+  _temp_file ALIAS FOR $5;
+  _partname NAME;
+  _r RECORD;
+  _request TEXT;
+  _result BOOLEAN;
+BEGIN
+  _partname := pgfkpart._get_partition_name (_relname, _column_value);
+  -- Execute _add_partition
+  SELECT pgfkpart._add_partition (_nspname, _relname, _partname, _cond, _temp_file) INTO _result;
+  -- Restore the foreign key if needed
+  FOR _r IN SELECT * FROM pgfkpart.partforeignkey WHERE table_schema=_nspname AND table_name=_relname LOOP
+     _request := 'ALTER TABLE pgfkpart.' || _partname ||' 
+      ADD CONSTRAINT ' || _r.constraint_name || ' FOREIGN KEY (' || _r.column_name || ') 
+          REFERENCES pgfkpart.' || pgfkpart._get_partition_name (_r.foreign_table_name, _column_value) || ' (' || _r.foreign_column_name || ') ';
+     IF _r.match_option <> 'NONE' THEN
+       _request := _request || _r.match_option;
+     END IF;
+     _request := _request || '
+          ON UPDATE ' || _r.update_rule || ' ON DELETE ' || _r.delete_rule;
+     EXECUTE _request;
+   END LOOP;
+   RETURN _result;
 END
 $BODY$
   LANGUAGE 'plpgsql';
@@ -619,10 +686,19 @@ DECLARE
   _tmpfilepath ALIAS FOR $5;
   _column_name NAME;
   _foreign_column_name NAME;
+  _r RECORD;
 BEGIN
-  -- Complete _tmpfilepath if unknown
-  IF _tmpfilepath IS NULL
-  THEN _tmpfilepath := '/tmp/pgfkpart_' || _relname;
+  -- Check if the table has already been partitioned
+  SELECT table_schema, table_name, column_name, foreign_table_schema, foreign_table_name, foreign_column_name
+  INTO _r
+  FROM pgfkpart.partition
+  WHERE table_schema=_nspname AND table_name=_relname;
+  IF FOUND
+  THEN 
+    IF _r.foreign_table_schema=_foreignnspname AND _r.foreign_table_name=_foreignrelname
+    THEN RAISE INFO 'The table %.% is already partitioned', _nspname, _relname; RETURN;
+    ELSE RAISE EXCEPTION 'The table %.% is already partitioned but with the foreign key %.%', _nspname, _relname, _r.foreign_table_schema, _r.foreign_table_name;
+    END IF;
   END IF;
   -- Get _column_name and _foreign_column_name
   SELECT column_name, foreign_column_name
@@ -630,11 +706,30 @@ BEGIN
   FROM pgfkpart._foreign_key_definitions
   WHERE table_name=_relname AND table_schema=_nspname
     AND foreign_table_name=_foreignrelname AND foreign_table_schema=_foreignnspname;
+  IF NOT FOUND
+  THEN RAISE EXCEPTION 'No foreign key is defined between %.% and %.%', _nspname, _relname, _foreignnspname, _foreignrelname;
+  END IF;
+  -- If one of the foreign key is on a partitioned table, move the foreign key to the partitioned tables
+  -- It must be done before add_partition
+  FOR _r IN SELECT d.* FROM pgfkpart._foreign_key_definitions d
+INNER JOIN pgfkpart.partition p ON (d.foreign_table_name=p.table_name AND d.foreign_table_schema=p.table_schema)
+WHERE d.table_schema=_nspname AND d.table_name=_relname LOOP
+    -- Store this foreign key in table partforeignkey
+    INSERT INTO pgfkpart.partforeignkey(constraint_name, table_schema, table_name, column_name, foreign_table_schema, foreign_table_name, foreign_column_name, match_option, update_rule, delete_rule)
+    VALUES (_r.constraint_name, _r.table_schema, _r.table_name, _r.column_name, _r.foreign_table_schema, _r.foreign_table_name, _r.foreign_column_name, _r.match_option, _r.update_rule, _r.delete_rule);
+    -- Remove the old foreign key
+    EXECUTE 'ALTER TABLE ' || _nspname || '.' || _relname || ' DROP CONSTRAINT ' || _r.constraint_name;
+  END LOOP;
+  -- Complete _tmpfilepath if unknown
+  IF _tmpfilepath IS NULL
+  THEN _tmpfilepath := '/tmp/pgfkpart_' || _relname;
+  END IF;
   -- Execute _add_partition on all the rows of _foreignrelname
+  RAISE INFO 'Partitioning %.%...', _nspname, _relname;
   EXECUTE 'SELECT pgfkpart._exec(
-    $A$SELECT pgfkpart._add_partition($$' || _nspname || '$$,
+    $A$SELECT pgfkpart._add_partition_with_fk($$' || _nspname || '$$,
     $$' || _relname || '$$,
-    $$' || _relname || '_p$A$ || ' || _foreign_column_name || ' || $A$$$,
+    $$$A$ || ' || _foreign_column_name || ' || $A$$$,
     $$' || _column_name || '=$A$ || ' ||  _foreign_column_name || ' || $A$$$,
     $$' || _tmpfilepath || '$$)$A$
   )
@@ -669,9 +764,9 @@ BEGIN
 WHERE t.relname=_partition
   AND t.relnamespace=s.oid
   AND s.nspname=$$pgfkpart$$)
-    THEN EXECUTE $EXEC$SELECT pgfkpart._add_partition($$' || _nspname || '$$,
+    THEN EXECUTE $EXEC$SELECT pgfkpart._add_partition_with_fk($$' || _nspname || '$$,
     $$' || _relname || '$$,
-    $$$EXEC$ || _partition || $EXEC$$$,
+    $$$EXEC$ || NEW.' || _foreign_column_name || ' || $EXEC$$$,
     $$' || _column_name || '= $EXEC$ || NEW.' || _foreign_column_name || ' || $EXEC$$$,
     $$' || _tmpfilepath || '$$)$EXEC$;
     END IF;
@@ -703,6 +798,7 @@ WHERE t.relname=_partition
   ON ' || _nspname || '.' || _relname || '
   FOR EACH ROW
   EXECUTE PROCEDURE ' || _nspname || '.' || _relname || '_parent_remove();';
+  RAISE INFO 'Partitioning done';
 END
 $BODY$ LANGUAGE 'plpgsql';
 
@@ -732,6 +828,8 @@ DECLARE
   _foreignnspname NAME;
   _foreignrelname NAME;
   _foreign_column_name NAME;
+  _r RECORD;
+  _request TEXT;
 BEGIN
   -- Complete _tmpfilepath if unknown
   IF _tmpfilepath IS NULL
@@ -754,6 +852,16 @@ BEGIN
   -- Update pgfkpart.partition
   DELETE FROM pgfkpart.partition
   WHERE table_schema=_nspname AND table_name=_relname;
+  -- Restore any old foreign key to a partitioned table
+  FOR _r IN SELECT * FROM pgfkpart.partforeignkey
+  WHERE foreign_table_schema=_nspname AND foreign_table_name=_relname LOOP
+    EXECUTE 'ALTER TABLE ' || _r.table_schema || '.' || _r.table_name ||' 
+      ADD CONSTRAINT ' || _r.constraint_name || ' FOREIGN KEY (' || _r.column_name || ') 
+          REFERENCES ' || _r.foreign_table_schema || '.' || _r.foreign_table_name || ' (' || _r.foreign_table_column || ') ' || _r.match_option || '
+          ON UPDATE ' || _r.update_rule || ' ON DELETE ' || _r.delete_rule;
+  END LOOP;
+  DELETE FROM pgfkpart.partforeignkey
+  WHERE foreign_table_schema=_nspname AND foreign_table_name=_relname;
 END
 $BODY$ LANGUAGE 'plpgsql';
 
