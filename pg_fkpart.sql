@@ -855,10 +855,15 @@ BEGIN
   -- Restore any old foreign key to a partitioned table
   FOR _r IN SELECT * FROM pgfkpart.partforeignkey
   WHERE foreign_table_schema=_nspname AND foreign_table_name=_relname LOOP
-    EXECUTE 'ALTER TABLE ' || _r.table_schema || '.' || _r.table_name ||' 
-      ADD CONSTRAINT ' || _r.constraint_name || ' FOREIGN KEY (' || _r.column_name || ') 
-          REFERENCES ' || _r.foreign_table_schema || '.' || _r.foreign_table_name || ' (' || _r.foreign_table_column || ') ' || _r.match_option || '
-          ON UPDATE ' || _r.update_rule || ' ON DELETE ' || _r.delete_rule;
+    _request := 'ALTER TABLE ' || _r.table_schema || '.' || _r.table_name ||' 
+     ADD CONSTRAINT ' || _r.constraint_name || ' FOREIGN KEY (' || _r.column_name || ') 
+          REFERENCES ' || _r.foreign_table_schema || '.' || _r.foreign_table_name || ' (' || _r.foreign_column_name || ') ';
+    IF _r.match_option <> 'NONE' THEN
+      _request := _request || _r.match_option;
+    END IF;
+    _request := _request || '
+         ON UPDATE ' || _r.update_rule || ' ON DELETE ' || _r.delete_rule;
+    EXECUTE _request;
   END LOOP;
   DELETE FROM pgfkpart.partforeignkey
   WHERE foreign_table_schema=_nspname AND foreign_table_name=_relname;
