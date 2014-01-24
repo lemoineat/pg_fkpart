@@ -123,10 +123,49 @@ BEGIN
 END;
 $BODY$ LANGUAGE 'plpgsql';
 
+
 --
 -- pgfkpart._get_index_def()
 --
--- Get index definition string(s) for new partition, excepting primary key.
+-- Get index definition string(s) for the parent table
+--
+CREATE OR REPLACE FUNCTION pgfkpart._get_parent_index_def (
+  NAME,
+  NAME
+) RETURNS SETOF TEXT
+AS $BODY$
+DECLARE
+  _nspname ALIAS FOR $1;
+  _relname ALIAS FOR $2;
+  _r RECORD;
+  _indexdef TEXT;
+BEGIN
+  FOR _r IN SELECT index_name, index_def, index_isunique, index_immediate
+FROM pgfkpart.parentindex
+WHERE table_schema=_nspname AND table_name=_relname
+  LOOP
+    IF _r.index_isunique THEN
+      _indexdef = 'ALTER TABLE ' || _nspname || '.' || _relname || '
+      ADD CONSTRAINT ' || _r.index_name || ' UNIQUE' ||
+      substring (_r.index_def from '\(.*\)');
+      IF NOT _r.index_immediate THEN
+        _indexdef = _indexdef || ' DEFERRABLE INITIALLY DEFERRED';
+      END IF;
+    ELSE
+      _indexdef = _r.index_def;
+    END IF;
+    RETURN NEXT _indexdef;
+  END LOOP;
+
+  RETURN;
+END
+$BODY$ LANGUAGE 'plpgsql';
+
+
+--
+-- pgfkpart._get_index_def()
+--
+-- Get index definition string(s) for new partition
 --
 CREATE OR REPLACE FUNCTION pgfkpart._get_index_def (
   NAME,
@@ -142,26 +181,20 @@ DECLARE
   _indexname NAME;
   _indexdef TEXT;
 BEGIN
-  FOR _r IN SELECT idxs.indexname, idxs.indexdef, idx.indisunique, idx.indimmediate
-FROM pg_indexes idxs
-INNER JOIN pg_class cls2 ON (idxs.indexname=cls2.relname)
-INNER JOIN pg_index idx ON (idx.indexrelid=cls2.oid)
-INNER JOIN pg_class cls ON (cls.oid=idx.indrelid)
-INNER JOIN pg_namespace nsp ON (nsp.oid=cls.relnamespace)
-WHERE nsp.nspname=_nspname
-  AND cls.relname=_relname
-  AND idx.indisprimary <> true
+  FOR _r IN SELECT index_name, index_def, index_isunique, index_immediate
+FROM pgfkpart.parentindex
+WHERE table_schema=_nspname AND table_name=_relname
   LOOP
-    _indexname = regexp_replace (_r.indexname, '^' || _relname, _partname);
-    IF _r.indisunique THEN
+    _indexname = regexp_replace (_r.index_name, '^' || _relname, _partname);
+    IF _r.index_isunique THEN
       _indexdef = 'ALTER TABLE pgfkpart.' || _partname || '
       ADD CONSTRAINT ' || _indexname || ' UNIQUE' ||
-      substring (_r.indexdef from '\(.*\)');
-      IF NOT _r.indimmediate THEN
+      substring (_r.index_def from '\(.*\)');
+      IF NOT _r.index_immediate THEN
         _indexdef = _indexdef || ' DEFERRABLE INITIALLY DEFERRED';
       END IF;
     ELSE
-      _indexdef = regexp_replace(_r.indexdef, 'INDEX .* ON ', 'INDEX ' || _indexname || ' ON ');
+      _indexdef = regexp_replace(_r.index_def, 'INDEX .* ON ', 'INDEX ' || _indexname || ' ON ');
       _indexdef = replace(_indexdef, ' ON ' || _relname, ' ON pgfkpart.' || _partname);      
     END IF;
     RETURN NEXT _indexdef;
@@ -601,6 +634,25 @@ WITH (
   OIDS=FALSE
 );
 
+-- Table to store the initial parent indexes
+-- DROP TABLE IF EXISTS pgfkpart.parentindex
+CREATE TABLE pgfkpart.parentindex
+(
+  parentindexid SERIAL NOT NULL,
+  table_schema NAME NOT NULL,
+  table_name NAME NOT NULL,
+  index_name NAME NOT NULL,
+  index_def TEXT NOT NULL,
+  index_isunique BOOLEAN NOT NULL,
+  index_immediate BOOLEAN NOT NULL,
+  index_isprimary BOOLEAN NOT NULL,
+  CONSTRAINT parentindex_pkey PRIMARY KEY (parentindexid),
+  CONSTRAINT parentindex_key UNIQUE (table_schema, table_name, index_name)
+)
+WITH (
+  OIDS=FALSE
+);
+
 CREATE OR REPLACE FUNCTION pgfkpart._get_partition_name (
   NAME,
   TEXT
@@ -724,6 +776,24 @@ WHERE d.table_schema=_nspname AND d.table_name=_relname LOOP
   IF _tmpfilepath IS NULL
   THEN _tmpfilepath := '/tmp/pgfkpart_' || _relname;
   END IF;
+  -- Store the indexes in pgfkpart.parentindex and remove them
+  INSERT INTO pgfkpart.parentindex (table_schema, table_name, index_name, index_def, index_isunique, index_immediate, index_isprimary)
+  SELECT _nspname, _relname, idxs.indexname, idxs.indexdef, idx.indisunique, idx.indimmediate, idx.indisprimary
+  FROM pg_indexes idxs
+  INNER JOIN pg_class cls2 ON (idxs.indexname=cls2.relname)
+  INNER JOIN pg_index idx ON (idx.indexrelid=cls2.oid)
+  INNER JOIN pg_class cls ON (cls.oid=idx.indrelid)
+  INNER JOIN pg_namespace nsp ON (nsp.oid=cls.relnamespace)
+  WHERE nsp.nspname=_nspname
+    AND cls.relname=_relname
+    AND idx.indisprimary <> true;
+  FOR _r IN SELECT index_name, index_isunique FROM pgfkpart.parentindex WHERE table_schema=_nspname AND table_name=_relname LOOP
+    RAISE NOTICE 'partition_with_fk: about to remove index %', _r.index_name;
+    IF _r.index_isunique THEN
+      EXECUTE 'ALTER TABLE ' || _nspname || '.' || _relname || ' DROP CONSTRAINT IF EXISTS ' || _r.index_name || ' CASCADE';  
+    END IF;
+    EXECUTE 'DROP INDEX IF EXISTS ' || _r.index_name || ' CASCADE';
+  END LOOP;
   -- Execute _add_partition on all the rows of _foreignrelname
   RAISE INFO 'Partitioning %.%...', _nspname, _relname;
   EXECUTE 'SELECT pgfkpart._exec(
@@ -867,6 +937,13 @@ BEGIN
   END LOOP;
   DELETE FROM pgfkpart.partforeignkey
   WHERE foreign_table_schema=_nspname AND foreign_table_name=_relname;
+  -- Restore the indexes
+  FOR _r IN SELECT pgfkpart._get_parent_index_def(_nspname, _relname) LOOP
+    _request = _r._get_parent_index_def || ';';
+    RAISE NOTICE 'unpartition_with_fk: %', _request;
+    EXECUTE _request;
+  END LOOP;
+  DELETE FROM pgfkpart.parentindex WHERE table_schema=_nspname AND table_name=_relname;
 END
 $BODY$ LANGUAGE 'plpgsql';
 
