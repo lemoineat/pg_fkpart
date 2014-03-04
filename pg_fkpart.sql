@@ -712,11 +712,12 @@ CREATE OR REPLACE FUNCTION pgfkpart.partition_with_fk (
   NAME,
   NAME,
   NAME,
-  NAME
+  NAME,
+  BOOLEAN
 ) RETURNS void
 AS $BODY$
 BEGIN
-  EXECUTE pgfkpart.partition_with_fk ($1, $2, $3, $4, NULL);
+  EXECUTE pgfkpart.partition_with_fk ($1, $2, $3, $4, $5, NULL);
 END
 $BODY$
   LANGUAGE 'plpgsql';
@@ -727,6 +728,7 @@ CREATE OR REPLACE FUNCTION pgfkpart.partition_with_fk (
   NAME,
   NAME,
   NAME,
+  BOOLEAN,
   TEXT
 ) RETURNS void
 AS $BODY$
@@ -735,10 +737,12 @@ DECLARE
   _relname ALIAS FOR $2;
   _foreignnspname ALIAS FOR $3;
   _foreignrelname ALIAS FOR $4;
-  _tmpfilepath ALIAS FOR $5;
+  _returning ALIAS FOR $5;
+  _tmpfilepath ALIAS FOR $6;
   _column_name NAME;
   _foreign_column_name NAME;
   _r RECORD;
+  _returning_text TEXT;
 BEGIN
   -- Check if the table has already been partitioned
   SELECT table_schema, table_name, column_name, foreign_table_schema, foreign_table_name, foreign_column_name
@@ -775,6 +779,11 @@ WHERE d.table_schema=_nspname AND d.table_name=_relname LOOP
   -- Complete _tmpfilepath if unknown
   IF _tmpfilepath IS NULL
   THEN _tmpfilepath := '/tmp/pgfkpart_' || _relname;
+  END IF;
+  -- Set _returning_text
+  IF _returning
+  THEN _returning_text := '_r';
+  ELSE _returning_text := 'NULL';
   END IF;
   -- Store the indexes in pgfkpart.parentindex and remove them
   INSERT INTO pgfkpart.parentindex (table_schema, table_name, index_name, index_def, index_isunique, index_immediate, index_isprimary)
@@ -844,7 +853,7 @@ WHERE t.relname=_partition
     EXECUTE $EXEC$INSERT INTO pgfkpart.$EXEC$ || _partition || $EXEC$ VALUES ($1.*) RETURNING *$EXEC$
       INTO _r
       USING NEW;
-    RETURN _r;
+    RETURN ' || _returning_text || ';
   END
   $A$ LANGUAGE plpgsql';
   EXECUTE 'CREATE TRIGGER ' || _relname || '_before_insert
@@ -852,22 +861,24 @@ WHERE t.relname=_partition
   ON ' || _nspname || '.' || _relname || '
   FOR EACH ROW
   EXECUTE PROCEDURE ' || _nspname || '.' || _relname || '_child_insert();';
-  EXECUTE 'CREATE OR REPLACE FUNCTION ' || _nspname || '.' || _relname || '_parent_remove ()
-  RETURNS trigger AS
-  $A$
-  DECLARE
-    _r ' || _relname || '%ROWTYPE;
-  BEGIN
-    DELETE FROM ONLY ' || _relname || ' WHERE ' || _relname || 'id = NEW.' || _relname || 'id 
-    RETURNING * INTO _r;
-    RETURN _r;
-  END
-  $A$ LANGUAGE plpgsql';
-  EXECUTE 'CREATE TRIGGER ' || _relname || '_after_insert
-  AFTER INSERT
-  ON ' || _nspname || '.' || _relname || '
-  FOR EACH ROW
-  EXECUTE PROCEDURE ' || _nspname || '.' || _relname || '_parent_remove();';
+  IF _returning THEN
+    EXECUTE 'CREATE OR REPLACE FUNCTION ' || _nspname || '.' || _relname || '_parent_remove ()
+    RETURNS trigger AS
+    $A$
+    DECLARE
+      _r ' || _relname || '%ROWTYPE;
+    BEGIN
+      DELETE FROM ONLY ' || _relname || ' WHERE ' || _relname || 'id = NEW.' || _relname || 'id 
+      RETURNING * INTO _r;
+      RETURN _r;
+    END
+    $A$ LANGUAGE plpgsql';
+    EXECUTE 'CREATE TRIGGER ' || _relname || '_after_insert
+    AFTER INSERT
+    ON ' || _nspname || '.' || _relname || '
+    FOR EACH ROW
+    EXECUTE PROCEDURE ' || _nspname || '.' || _relname || '_parent_remove();';
+  END IF;
   RAISE INFO 'Partitioning done';
 END
 $BODY$ LANGUAGE 'plpgsql';
