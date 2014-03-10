@@ -598,7 +598,7 @@ $BODY$
   LANGUAGE 'plpgsql';
 
 -- DROP TABLE IF EXISTS pgfkpart.partition;
-CREATE TABLE pgfkpart.partition
+CREATE TABLE IF NOT EXISTS pgfkpart.partition
 (
   partitionid SERIAL NOT NULL,
   table_schema NAME NOT NULL,
@@ -616,7 +616,7 @@ WITH (
 
 -- Reference to the foreign keys that were 'partitioned'
 -- DROP TABLE IF EXISTS pgfkpart.partforeignkey
-CREATE TABLE pgfkpart.partforeignkey
+CREATE TABLE IF NOT EXISTS pgfkpart.partforeignkey
 (
   partforeignkeyid SERIAL NOT NULL,
   constraint_name NAME NOT NULL,
@@ -636,7 +636,7 @@ WITH (
 
 -- Table to store the initial parent indexes
 -- DROP TABLE IF EXISTS pgfkpart.parentindex
-CREATE TABLE pgfkpart.parentindex
+CREATE TABLE IF NOT EXISTS pgfkpart.parentindex
 (
   parentindexid SERIAL NOT NULL,
   table_schema NAME NOT NULL,
