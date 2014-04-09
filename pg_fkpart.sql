@@ -692,6 +692,20 @@ BEGIN
   SELECT pgfkpart._add_partition (_nspname, _relname, _partname, _cond, _temp_file) INTO _result;
   -- Restore the foreign key if needed
   FOR _r IN SELECT * FROM pgfkpart.partforeignkey WHERE table_schema=_nspname AND table_name=_relname LOOP
+    -- Check the foreign key table exists. If not, create it
+    EXECUTE 'SELECT * FROM pg_class t, pg_namespace s
+WHERE t.relname=$$' || pgfkpart._get_partition_name (_r.foreign_table_name, _column_value) || '$$
+  AND t.relnamespace=s.oid
+  AND s.nspname=$$pgfkpart$$';
+    IF NOT FOUND THEN
+      EXECUTE 'SELECT pgfkpart._add_partition_with_fk(
+      $$' || _r.foreign_table_schema || '$$,
+      $$' || _r.foreign_table_name || '$$,
+      $$' || _column_value || '$$,
+      $$' || _r.foreign_column_name || '=' || _column_value || '$$,
+      $$' || _temp_file || _r.foreign_table_name || '$$)';
+    END IF;
+    -- Add the foreign key once the foreign key table exists
      _request := 'ALTER TABLE pgfkpart.' || _partname ||' 
       ADD CONSTRAINT ' || _r.constraint_name || ' FOREIGN KEY (' || _r.column_name || ') 
           REFERENCES pgfkpart.' || pgfkpart._get_partition_name (_r.foreign_table_name, _column_value) || ' (' || _r.foreign_column_name || ') ';
