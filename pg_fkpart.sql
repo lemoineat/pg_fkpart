@@ -125,7 +125,7 @@ $BODY$ LANGUAGE 'plpgsql';
 
 
 --
--- pgfkpart._get_index_def()
+-- pgfkpart._get_parent_index_def()
 --
 -- Get index definition string(s) for the parent table
 --
@@ -161,6 +161,69 @@ WHERE table_schema=_nspname AND table_name=_relname
 END
 $BODY$ LANGUAGE 'plpgsql';
 
+--
+-- pgfkpart._get_index_name()
+--
+-- Get the index name for a partition
+--
+CREATE OR REPLACE FUNCTION pgfkpart._get_index_name (
+  NAME,
+  NAME,
+  NAME,
+  NAME
+) RETURNS NAME
+AS $BODY$
+DECLARE
+  _nspname ALIAS FOR $1;
+  _relname ALIAS FOR $2;
+  _partname ALIAS FOR $3;
+  _index_name ALIAS FOR $4;
+BEGIN
+  RETURN regexp_replace (_index_name, '^' || _relname, _partname);
+END
+$BODY$ LANGUAGE 'plpgsql';
+
+--
+-- pgfkpart._get_index_def()
+--
+-- Get index definition string(s) for new partition
+--
+CREATE OR REPLACE FUNCTION pgfkpart._get_index_def (
+  NAME,
+  NAME,
+  NAME,
+  NAME,
+  TEXT,
+  BOOL,
+  BOOL 
+) RETURNS TEXT
+AS $BODY$
+DECLARE
+  _nspname ALIAS FOR $1;
+  _relname ALIAS FOR $2;
+  _partname ALIAS FOR $3;
+  _index_name ALIAS FOR $4;
+  _index_def ALIAS FOR $5;
+  _index_isunique ALIAS FOR $6;
+  _index_immediate ALIAS FOR $7;
+  _partindexname NAME;
+  _partindexdef TEXT;
+BEGIN
+  _partindexname = pgfkpart._get_index_name (_nspname, _relname, _partname, _index_name);
+  IF _index_isunique THEN
+    _partindexdef = 'ALTER TABLE pgfkpart.' || _partname || '
+    ADD CONSTRAINT ' || _partindexname || ' UNIQUE' ||
+    substring (_index_def from '\(.*\)');
+    IF NOT _index_immediate THEN
+      _partindexdef = _partindexdef || ' DEFERRABLE INITIALLY DEFERRED';
+    END IF;
+  ELSE
+    _partindexdef = regexp_replace(_index_def, 'INDEX .* ON ', 'INDEX ' || _partindexname || ' ON ');
+    _partindexdef = replace(_partindexdef, ' ON ' || _relname, ' ON pgfkpart.' || _partname);      
+  END IF;
+  RETURN _partindexdef;
+END
+$BODY$ LANGUAGE 'plpgsql';
 
 --
 -- pgfkpart._get_index_def()
@@ -178,26 +241,42 @@ DECLARE
   _relname ALIAS FOR $2;
   _partname ALIAS FOR $3;
   _r RECORD;
-  _indexname NAME;
-  _indexdef TEXT;
 BEGIN
   FOR _r IN SELECT index_name, index_def, index_isunique, index_immediate
 FROM pgfkpart.parentindex
 WHERE table_schema=_nspname AND table_name=_relname
   LOOP
-    _indexname = regexp_replace (_r.index_name, '^' || _relname, _partname);
-    IF _r.index_isunique THEN
-      _indexdef = 'ALTER TABLE pgfkpart.' || _partname || '
-      ADD CONSTRAINT ' || _indexname || ' UNIQUE' ||
-      substring (_r.index_def from '\(.*\)');
-      IF NOT _r.index_immediate THEN
-        _indexdef = _indexdef || ' DEFERRABLE INITIALLY DEFERRED';
-      END IF;
-    ELSE
-      _indexdef = regexp_replace(_r.index_def, 'INDEX .* ON ', 'INDEX ' || _indexname || ' ON ');
-      _indexdef = replace(_indexdef, ' ON ' || _relname, ' ON pgfkpart.' || _partname);      
-    END IF;
-    RETURN NEXT _indexdef;
+    RETURN NEXT pgfkpart._get_index_def (_nspname, _relname, _partname, _r.index_name, _r.index_def, _r.index_isunique, _r.index_immediate);
+  END LOOP;
+
+  RETURN;
+END
+$BODY$ LANGUAGE 'plpgsql';
+
+--
+-- pgfkpart._get_index_def()
+--
+-- Get index definition string(s) for new partition
+--
+CREATE OR REPLACE FUNCTION pgfkpart._get_index_def (
+  NAME,
+  NAME,
+  NAME,
+  NAME
+) RETURNS SETOF TEXT
+AS $BODY$
+DECLARE
+  _nspname ALIAS FOR $1;
+  _relname ALIAS FOR $2;
+  _partname ALIAS FOR $3;
+  _indexname ALIAS FOR $4;
+  _r RECORD;
+BEGIN
+  FOR _r IN SELECT index_name, index_def, index_isunique, index_immediate
+FROM pgfkpart.parentindex
+WHERE table_schema=_nspname AND table_name=_relname AND index_name=_indexname
+  LOOP
+    RETURN NEXT pgfkpart._get_index_def (_nspname, _relname, _partname, _r.index_name, _r.index_def, _r.index_isunique, _r.index_immediate);
   END LOOP;
 
   RETURN;
@@ -969,6 +1048,88 @@ BEGIN
     EXECUTE _request;
   END LOOP;
   DELETE FROM pgfkpart.parentindex WHERE table_schema=_nspname AND table_name=_relname;
+END
+$BODY$ LANGUAGE 'plpgsql';
+
+--
+-- pgfkpart.dispatch_index()
+--
+-- Dispatch any nex index in the parent table into the children tables
+--
+CREATE OR REPLACE FUNCTION pgfkpart.dispatch_index (
+  NAME,
+  NAME
+) RETURNS void
+AS $BODY$
+DECLARE
+  _nspname ALIAS FOR $1;
+  _relname ALIAS FOR $2;
+  _r RECORD;
+  _p RECORD;
+  _partindexdef TEXT;
+BEGIN
+  -- Loop on all the new indexes
+  FOR _r IN SELECT _nspname AS table_schema, _relname AS table_name, idxs.indexname AS index_name, idxs.indexdef AS index_def, idx.indisunique AS index_isunique, idx.indimmediate AS index_immediate, idx.indisprimary AS index_isprimary
+  FROM pg_indexes idxs
+  INNER JOIN pg_class cls2 ON (idxs.indexname=cls2.relname)
+  INNER JOIN pg_index idx ON (idx.indexrelid=cls2.oid)
+  INNER JOIN pg_class cls ON (cls.oid=idx.indrelid)
+  INNER JOIN pg_namespace nsp ON (nsp.oid=cls.relnamespace)
+  WHERE nsp.nspname=_nspname
+    AND cls.relname=_relname
+    AND idx.indisprimary <> true 
+    AND EXISTS (SELECT 1 FROM pgfkpart.partition WHERE table_schema=_nspname AND table_name=_relname) LOOP
+    -- Store the index in pgfkpart.parentindex
+    INSERT INTO pgfkpart.parentindex (table_schema, table_name, index_name, index_def, index_isunique, index_immediate, index_isprimary)
+    VALUES (_r.table_schema, _r.table_name, _r.index_name, _r.index_def, _r.index_isunique, _r.index_immediate, _r.index_isprimary);
+    -- Remove the index in the parent table
+    IF _r.index_isunique THEN
+      EXECUTE 'ALTER TABLE ' || _nspname || '.' || _relname || ' DROP CONSTRAINT IF EXISTS ' || _r.index_name || ' CASCADE';  
+    END IF;
+    EXECUTE 'DROP INDEX IF EXISTS ' || _r.index_name || ' CASCADE';
+    -- Add the index in the children tables
+    FOR _p IN SELECT show_partition AS partition_name FROM pgfkpart.show_partition (_nspname, _relname) LOOP
+      _partindexdef = pgfkpart._get_index_def (_nspname, _relname, _p.partition_name, _r.index_name, _r.index_def, _r.index_isunique, _r.index_immediate) || ';';
+      RAISE NOTICE 'dispatch_index: %', _partindexdef;
+      EXECUTE _partindexdef;
+    END LOOP;
+  END LOOP;
+
+  RETURN;
+END
+$BODY$ LANGUAGE 'plpgsql';
+
+--
+-- pgfkpart.drop_index()
+--
+-- Remove an index in all the children tables
+--
+CREATE OR REPLACE FUNCTION pgfkpart.drop_index (
+  NAME,
+  NAME,
+  NAME
+) RETURNS void
+AS $BODY$
+DECLARE
+  _nspname ALIAS FOR $1;
+  _relname ALIAS FOR $2;
+  _indexname ALIAS FOR $3;
+  _p RECORD;
+  _partindexname NAME;
+BEGIN
+  -- Remove the index in pgfkpart.parentindex
+  DELETE FROM pgfkpart.parentindex
+  WHERE table_schema=_nspname AND table_name=_relname AND index_name=_indexname;
+  -- Remove the index in the parent table if any
+  DROP INDEX IF EXISTS _indexname;
+  -- Remove the index in all the children table
+  FOR _p IN SELECT show_partition AS partition_name FROM pgfkpart.show_partition (_nspname, _relname) LOOP
+    _partindexname = pgfkpart._get_index_name (_nspname, _relname, _p.partition_name, _indexname);
+    RAISE NOTICE 'drop_index: %', _partindexname;
+    EXECUTE 'DROP INDEX IF EXISTS pgfkpart.' || _partindexname;
+  END LOOP;
+
+  RETURN;
 END
 $BODY$ LANGUAGE 'plpgsql';
 
