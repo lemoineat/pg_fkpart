@@ -1,4 +1,4 @@
-﻿--
+--
 -- PostgreSQL Partitioning Utility
 --
 -- Copyright(C) 2012 Uptime Technologies, LLC.

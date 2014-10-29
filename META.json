@@ -1,24 +1,24 @@
 {
     "name": "pg_fkpart",
     "abstract": "Table partitioning by foreign key utility for PostgreSQL",
-    "version": "0.1.1",
+    "version": "1.0",
     "maintainer": "Nicolas Relange <nrelange@lemoinetechnologies.com>",
     "license": "gpl_2",
     "provides": {
         "pg_part": {
-            "file": "pg_fkpart--0.1.1.sql",
+            "file": "pg_fkpart--1.0.sql",
             "docfile": "README.md",
-            "version": "0.1.1",
+            "version": "1.0",
             "abstract": "Table partitioning by foreign key extension"
         }
     },
     "resources": {
         "bugtracker": {
-            "web": "https://github.com/uptimejp/pg_fkpart/issues"
+            "web": "https://github.com/lemoineat/pg_fkpart/issues"
         },
         "repository": {
-            "url": "git://github.com/uptimejp/pg_fkpart.git",
-            "web": "https://github.com/uptimejp/pg_fkpart",
+            "url": "git://github.com/lemoineat/pg_fkpart.git",
+            "web": "https://github.com/lemoineat/pg_fkpart",
             "type": "git"
         }
     },     

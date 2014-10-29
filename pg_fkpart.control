@@ -1,4 +1,5 @@
 comment = 'Table partitioning by foreign key utility'
-default_version = '0.1.1'
+default_version = '1.0'
 module_pathname = '$libdir/pg_fkpart'
 relocatable = false
+superuser = true
