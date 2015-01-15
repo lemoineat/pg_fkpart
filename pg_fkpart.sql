@@ -1133,4 +1133,38 @@ BEGIN
 END
 $BODY$ LANGUAGE 'plpgsql';
 
+--
+-- pgfkpart.drop_unique_constraint()
+--
+-- Remove a unique constraint in all the children tables
+--
+CREATE OR REPLACE FUNCTION pgfkpart.drop_unique_constraint (
+  NAME,
+  NAME,
+  NAME
+) RETURNS void
+AS $BODY$
+DECLARE
+  _nspname ALIAS FOR $1;
+  _relname ALIAS FOR $2;
+  _constraintname ALIAS FOR $3;
+  _p RECORD;
+  _partconstraintname NAME;
+BEGIN
+  -- Remove the associated index in pgfkpart.parentindex
+  DELETE FROM pgfkpart.parentindex
+  WHERE table_schema=_nspname AND table_name=_relname AND index_name=_constraintname;
+  -- Remove the constraint in the parent table if any
+  EXECUTE 'ALTER TABLE ' || _nspname || '.' || _relname || ' DROP CONSTRAINT IF EXISTS ' || _constraintname || ' CASCADE';  
+  -- Remove the constraint in all the children table
+  FOR _p IN SELECT show_partition AS partition_name FROM pgfkpart.show_partition (_nspname, _relname) LOOP
+    _partconstraintname = pgfkpart._get_index_name (_nspname, _relname, _p.partition_name, _constraintname);
+    RAISE NOTICE 'drop_unique_constraint: %', _partconstraintname;
+    EXECUTE 'ALTER TABLE pgfkpart.' || _p.partition_name || ' DROP CONSTRAINT IF EXISTS ' || _partconstraintname || ' CASCADE';
+  END LOOP;
+
+  RETURN;
+END
+$BODY$ LANGUAGE 'plpgsql';
+
 COMMIT;
