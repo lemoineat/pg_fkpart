@@ -423,7 +423,7 @@ END
 $BODY$ LANGUAGE 'plpgsql';
 
 --
--- pgfkpart.merge_partition()
+-- pgfkpart._merge_partition()
 --
 -- Merge a partition into the parent table.
 --
@@ -801,6 +801,11 @@ $BODY$
   LANGUAGE 'plpgsql';
 
 
+--
+-- pgfkpart.partition_with_fk()
+--
+-- Partition a table following a specified foreign key
+--
 CREATE OR REPLACE FUNCTION pgfkpart.partition_with_fk (
   NAME,
   NAME,
@@ -816,6 +821,11 @@ $BODY$
   LANGUAGE 'plpgsql';
 
 
+--
+-- pgfkpart.partition_with_fk()
+--
+-- Partition a table following a specified foreign key
+--
 CREATE OR REPLACE FUNCTION pgfkpart.partition_with_fk (
   NAME,
   NAME,
@@ -977,6 +987,11 @@ END
 $BODY$ LANGUAGE 'plpgsql';
 
 
+--
+-- pgfkpart.unpartition_with_fk()
+--
+-- Unpartition a table
+--
 CREATE OR REPLACE FUNCTION pgfkpart.unpartition_with_fk (
   NAME,
   NAME
@@ -989,6 +1004,11 @@ $BODY$
   LANGUAGE 'plpgsql';
 
 
+--
+-- pgfkpart.unpartition_with_fk()
+--
+-- Unpartition a table
+--
 CREATE OR REPLACE FUNCTION pgfkpart.unpartition_with_fk (
   NAME,
   NAME,
