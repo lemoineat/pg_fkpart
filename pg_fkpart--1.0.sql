@@ -1,7 +1,7 @@
-﻿/* contrib/pg_fkpart/pg_fkpart--1.0.sql */
+/* contrib/pg_fkpart/pg_fkpart--1.0.sql */
 
--- complain if script is sourced in psql, rather than via CREATE EXTENSION
-\echo Use "CREATE EXTENSION pgfkpart" to load this file. \quit
+-- complain if script is sourced in psql, rather than via DROP EXTENSION
+\echo Use "DROP EXTENSION pgfkpart" to load this file. \quit
 
 --
 -- PostgreSQL Partitioning by Foreign Key Utility
@@ -27,8 +27,6 @@ CREATE SCHEMA pgfkpart;
 -- TODO:
 -- manage the tables with a primary key which is not _table_name || 'id'
 
-
-BEGIN;
 
 --
 -- pgfkpart._foreign_key_definitions view
@@ -697,6 +695,7 @@ CREATE TABLE IF NOT EXISTS pgfkpart.partition
 WITH (
   OIDS=FALSE
 );
+SELECT pg_catalog.pg_extension_config_dump('pgfkpart.partition', '');
 
 -- Reference to the foreign keys that were 'partitioned'
 -- DROP TABLE IF EXISTS pgfkpart.partforeignkey
@@ -717,6 +716,7 @@ CREATE TABLE IF NOT EXISTS pgfkpart.partforeignkey
 WITH (
   OIDS=FALSE
 );
+SELECT pg_catalog.pg_extension_config_dump('pgfkpart.partforeignkey', '');
 
 -- Table to store the initial parent indexes
 -- DROP TABLE IF EXISTS pgfkpart.parentindex
@@ -736,6 +736,7 @@ CREATE TABLE IF NOT EXISTS pgfkpart.parentindex
 WITH (
   OIDS=FALSE
 );
+SELECT pg_catalog.pg_extension_config_dump('pgfkpart.parentindex', '');
 
 CREATE OR REPLACE FUNCTION pgfkpart._get_partition_name (
   NAME,
@@ -1191,5 +1192,3 @@ BEGIN
   RETURN;
 END
 $BODY$ LANGUAGE 'plpgsql';
-
-COMMIT;

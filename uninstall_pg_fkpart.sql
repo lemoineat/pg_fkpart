@@ -1,3 +1,8 @@
+/* contrib/pg_fkpart/uninstall_pg_fkpart.sql */
+
+-- complain if script is sourced in psql, rather than via CREATE EXTENSION
+\echo Use "CREATE EXTENSION pgfkpart" to load this file. \quit
+
 --
 -- PostgreSQL Partitioning Utility
 --
