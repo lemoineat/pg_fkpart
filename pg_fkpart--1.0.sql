@@ -1,7 +1,7 @@
 /* contrib/pg_fkpart/pg_fkpart--1.0.sql */
 
 -- complain if script is sourced in psql, rather than via DROP EXTENSION
-\echo Use "DROP EXTENSION pgfkpart" to load this file. \quit
+\echo Use "DROP EXTENSION pg_fkpart" to load this file. \quit
 
 --
 -- PostgreSQL Partitioning by Foreign Key Utility
@@ -22,7 +22,7 @@
 -- with this program; if not, write to the Free Software Foundation, Inc.,
 -- 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 --
-CREATE SCHEMA pgfkpart;
+--CREATE SCHEMA pgfkpart; -- Because the schema contains the extension
 
 -- TODO:
 -- manage the tables with a primary key which is not _table_name || 'id'

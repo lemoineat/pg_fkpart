@@ -1,7 +1,7 @@
 /* contrib/pg_fkpart/pg_fkpart--unpackaged--1.0.sql */
 
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
-\echo Use "CREATE EXTENSION pgfkpart" to load this file. \quit
+\echo Use "CREATE EXTENSION pg_fkpart" to load this file. \quit
 
 --
 -- PostgreSQL Partitioning by Foreign Key Utility
@@ -23,40 +23,40 @@
 -- 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 --
 
-ALTER EXTENSION pgfkpart ADD schema pgfkpart;
-ALTER EXTENSION pgfkpart ADD VIEW pgfkpart._foreign_key_definitions;
-ALTER EXTENSION pgfkpart ADD function pgfkpart._get_attname_by_attnum(NAME,NAME,SMALLINT);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._get_primary_key_def(NAME,NAME,NAME);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._get_parent_index_def(NAME,NAME);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._get_index_name(NAME,NAME,NAME,NAME);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._get_index_def(NAME,NAME,NAME,TEXT,BOOL,BOOL);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._get_index_def(NAME,NAME,NAME);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._get_index_def(NAME,NAME,NAME,NAME);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._get_partition_def(NAME,NAME,NAME,TEXT);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._get_export_query(NAME,NAME,TEXT,TEXT);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._get_import_query(NAME,NAME,TEXT);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._add_partition(NAME,NAME,NAME,TEXT,TEXT);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._merge_partition(NAME,NAME,NAME,TEXT,TEXT);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._get_constraint_name(NAME);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._get_constraint_def(NAME,TEXT);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._get_attach_partition_def(NAME,NAME,NAME,TEXT);
-ALTER EXTENSION pgfkpart ADD function pgfkpart.attach_partition(NAME,NAME,NAME,TEXT);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._get_detach_partition_def(NAME,NAME,NAME);
-ALTER EXTENSION pgfkpart ADD function pgfkpart.detach_partition(NAME,NAME,NAME);
-ALTER EXTENSION pgfkpart ADD function pgfkpart.show_partition(NAME,NAME);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._exec(TEXT);
-ALTER EXTENSION pgfkpart ADD TABLE pgfkpart.partition;
+--ALTER EXTENSION pg_fkpart ADD schema pgfkpart; -- Because the schema contains the extension
+ALTER EXTENSION pg_fkpart ADD VIEW pgfkpart._foreign_key_definitions;
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_attname_by_attnum(NAME,NAME,SMALLINT);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_primary_key_def(NAME,NAME,NAME);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_parent_index_def(NAME,NAME);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_index_name(NAME,NAME,NAME,NAME);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_index_def(NAME,NAME,NAME,NAME,TEXT,BOOL,BOOL);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_index_def(NAME,NAME,NAME);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_index_def(NAME,NAME,NAME,NAME);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_partition_def(NAME,NAME,NAME,TEXT);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_export_query(NAME,NAME,TEXT,TEXT);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_import_query(NAME,NAME,TEXT);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._add_partition(NAME,NAME,NAME,TEXT,TEXT);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._merge_partition(NAME,NAME,NAME,TEXT,TEXT);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_constraint_name(NAME);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_constraint_def(NAME,TEXT);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_attach_partition_def(NAME,NAME,NAME,TEXT);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart.attach_partition(NAME,NAME,NAME,TEXT);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_detach_partition_def(NAME,NAME,NAME);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart.detach_partition(NAME,NAME,NAME);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart.show_partition(NAME,NAME);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._exec(TEXT);
+ALTER EXTENSION pg_fkpart ADD TABLE pgfkpart.partition;
 SELECT pg_catalog.pg_extension_config_dump('pgfkpart.partition', '');
-ALTER EXTENSION pgfkpart ADD TABLE pgfkpart.partforeignkey;
+ALTER EXTENSION pg_fkpart ADD TABLE pgfkpart.partforeignkey;
 SELECT pg_catalog.pg_extension_config_dump('pgfkpart.partforeignkey', '');
-ALTER EXTENSION pgfkpart ADD TABLE pgfkpart.parentindex;
+ALTER EXTENSION pg_fkpart ADD TABLE pgfkpart.parentindex;
 SELECT pg_catalog.pg_extension_config_dump('pgfkpart.parentindex', '');
-ALTER EXTENSION pgfkpart ADD function pgfkpart._get_partition_name(NAME,TEXT);
-ALTER EXTENSION pgfkpart ADD function pgfkpart._add_partition_with_fk(NAME,NAME,TEXT,TEXT,TEXT);
-ALTER EXTENSION pgfkpart ADD function pgfkpart.partition_with_fk(NAME,NAME,NAME,NAME,BOOLEAN);
-ALTER EXTENSION pgfkpart ADD function pgfkpart.partition_with_fk(NAME,NAME,NAME,NAME,BOOLEAN,TEXT);
-ALTER EXTENSION pgfkpart ADD function pgfkpart.unpartition_with_fk(NAME,NAME);
-ALTER EXTENSION pgfkpart ADD function pgfkpart.unpartition_with_fk(NAME,NAME,TEXT);
-ALTER EXTENSION pgfkpart ADD function pgfkpart.dispatch_index(NAME,NAME);
-ALTER EXTENSION pgfkpart ADD function pgfkpart.drop_index(NAME,NAME,NAME);
-ALTER EXTENSION pgfkpart ADD function pgfkpart.drop_unique_constraint(NAME,NAME,NAME);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_partition_name(NAME,TEXT);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart._add_partition_with_fk(NAME,NAME,TEXT,TEXT,TEXT);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart.partition_with_fk(NAME,NAME,NAME,NAME,BOOLEAN);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart.partition_with_fk(NAME,NAME,NAME,NAME,BOOLEAN,TEXT);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart.unpartition_with_fk(NAME,NAME);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart.unpartition_with_fk(NAME,NAME,TEXT);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart.dispatch_index(NAME,NAME);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart.drop_index(NAME,NAME,NAME);
+ALTER EXTENSION pg_fkpart ADD function pgfkpart.drop_unique_constraint(NAME,NAME,NAME);
