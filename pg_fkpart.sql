@@ -1,4 +1,4 @@
-﻿--
+--
 -- PostgreSQL Partitioning by Foreign Key Utility
 --
 -- Copyright(C) 2012 Uptime Technologies, LLC.

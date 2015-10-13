@@ -1,4 +1,4 @@
-﻿/* contrib/pg_fkpart/pg_fkpart--1.1.sql */
+/* contrib/pg_fkpart/pg_fkpart--1.1.sql */
 
 -- complain if script is sourced in psql, rather than via DROP EXTENSION
 \echo Use "DROP EXTENSION pg_fkpart" to load this file. \quit

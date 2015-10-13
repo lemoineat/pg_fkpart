@@ -1,4 +1,4 @@
-﻿/* contrib/pg_fkpart/pg_fkpart--1.0--1.1.sql */
+/* contrib/pg_fkpart/pg_fkpart--1.0--1.1.sql */
 
 --
 -- PostgreSQL Partitioning by Foreign Key Utility
