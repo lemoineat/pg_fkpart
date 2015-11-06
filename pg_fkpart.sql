@@ -1,4 +1,4 @@
---
+﻿--
 -- PostgreSQL Partitioning by Foreign Key Utility
 --
 -- Copyright(C) 2012 Uptime Technologies, LLC.
@@ -927,7 +927,7 @@ WHERE d.table_schema=_nspname AND d.table_name=_relname LOOP
     _partition NAME;
     _column_name NAME;
     _column_value TEXT;
-    _r ' || _relname || '%ROWTYPE;
+    _r ' || _nspname || '.' || _relname || '%ROWTYPE;
   BEGIN
     -- Get the column name
     SELECT column_name
