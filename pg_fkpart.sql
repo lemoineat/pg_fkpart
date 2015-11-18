@@ -605,7 +605,7 @@ BEGIN
   _const_name = pgfkpart._get_constraint_name(_partname);
 
   _partition_def = 'ALTER TABLE pgfkpart.' || _partname;
-  _partition_def = _partition_def || ' NO INHERIT ' || _relname || ',';
+  _partition_def = _partition_def || ' NO INHERIT ' || _nspname || '.' ||  _relname || ',';
   _partition_def = _partition_def || ' DROP CONSTRAINT ' || _const_name;
 
   RETURN _partition_def;
