@@ -1,14 +1,14 @@
 {
     "name": "pg_fkpart",
     "abstract": "Table partitioning by foreign key utility for PostgreSQL",
-    "version": "1.1",
+    "version": "1.2",
     "maintainer": "Nicolas Relange <nrelange@lemoinetechnologies.com>",
     "license": "gpl_2",
     "provides": {
         "pg_fkpart": {
-            "file": "pg_fkpart--1.1.sql",
+            "file": "pg_fkpart--1.2.sql",
             "docfile": "README.md",
-            "version": "1.1",
+            "version": "1.2",
             "abstract": "Table partitioning by foreign key extension"
         }
     },
