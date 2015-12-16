@@ -8,7 +8,7 @@
         "pg_fkpart": {
             "file": "pg_fkpart--1.2.sql",
             "docfile": "README.md",
-            "version": "1.2.0",
+            "version": "1.2.1",
             "abstract": "Table partitioning by foreign key extension"
         }
     },
