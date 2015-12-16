@@ -46,11 +46,17 @@ ALTER EXTENSION pg_fkpart ADD function pgfkpart.detach_partition(NAME,NAME,NAME)
 ALTER EXTENSION pg_fkpart ADD function pgfkpart.show_partition(NAME,NAME);
 ALTER EXTENSION pg_fkpart ADD function pgfkpart._exec(TEXT);
 ALTER EXTENSION pg_fkpart ADD TABLE pgfkpart.partition;
+ALTER EXTENSION pg_fkpart ADD SEQUENCE pgfkpart.partition_partitionid_seq;
 SELECT pg_catalog.pg_extension_config_dump('pgfkpart.partition', '');
+SELECT pg_catalog.pg_extension_config_dump('pgfkpart.partition_partitionid_seq', '');
 ALTER EXTENSION pg_fkpart ADD TABLE pgfkpart.partforeignkey;
+ALTER EXTENSION pg_fkpart ADD SEQUENCE pgfkpart.partforeignkey_partforeignkeyid_seq;
 SELECT pg_catalog.pg_extension_config_dump('pgfkpart.partforeignkey', '');
+SELECT pg_catalog.pg_extension_config_dump('pgfkpart.partforeignkey_partforeignkeyid_seq', '');
 ALTER EXTENSION pg_fkpart ADD TABLE pgfkpart.parentindex;
+ALTER EXTENSION pg_fkpart ADD SEQUENCE pgfkpart.parentindex_parentindexid_seq;
 SELECT pg_catalog.pg_extension_config_dump('pgfkpart.parentindex', '');
+SELECT pg_catalog.pg_extension_config_dump('pgfkpart.parentindex_parentindexid_seq', '');
 ALTER EXTENSION pg_fkpart ADD function pgfkpart._get_partition_name(NAME,TEXT);
 ALTER EXTENSION pg_fkpart ADD function pgfkpart._add_partition_with_fk(NAME,NAME,TEXT,TEXT,TEXT);
 ALTER EXTENSION pg_fkpart ADD function pgfkpart.partition_with_fk(NAME,NAME,NAME,NAME,BOOLEAN);
