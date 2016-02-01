@@ -69,7 +69,7 @@ Parameters:
 pgfkpart.dispatch_index
 -----------------------
 
-pgfkpart.dispatch_index() function dispatches any new index (or a unique constraint) in the parent tables to the children tables.
+pgfkpart.dispatch_index() function dispatches any new index (or a unique/exclusion constraint) in the parent tables to the children tables.
 
     pgfkpart.dispatch_index(table_schema, table_name)
 
@@ -96,7 +96,7 @@ Parameters:
 pgfkpart.drop_unique_constraint
 -------------------------------
 
-pgfkpart.drop_unique_constraint() function removes a unique constraint in all the children tables.
+pgfkpart.drop_unique_constraint() function removes a unique or exclusion constraint in all the children tables.
 
     pgfkpart.drop_unique_constraint(table_schema, table_name, constraint_name)
 
@@ -104,7 +104,7 @@ Parameters:
 
 - table_schema : schema of the partitioned table
 - table_name : name of the partitioned table
-- constraint_name: name of the unique constraint
+- constraint_name: name of the unique or exclusion constraint
 
 
 Authors
