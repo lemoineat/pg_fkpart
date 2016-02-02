@@ -112,5 +112,5 @@ Authors
 
     Nicolas Relange <nrelange@lemoinetechnologies.com>
 
-For the intitial pg_part:
+For the initial pg_part:
     Satoshi Nagayasu <snaga@uptime.jp>
