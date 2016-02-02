@@ -17,6 +17,10 @@
 -- with this program; if not, write to the Free Software Foundation, Inc.,
 -- 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 --
+
+-- pg_fkpart unpackaged (1.3.0)
+
+-- Comment the next line for an upgrade
 CREATE SCHEMA pgfkpart;
 
 -- TODO:
