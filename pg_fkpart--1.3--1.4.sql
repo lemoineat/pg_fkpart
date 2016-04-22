@@ -1,4 +1,4 @@
-/* contrib/pg_fkpart/pg_fkpart--1.1--1.2.sql */
+/* contrib/pg_fkpart/pg_fkpart--1.3--1.4.sql */
 
 --
 -- PostgreSQL Partitioning by Foreign Key Utility
@@ -19,181 +19,6 @@
 -- with this program; if not, write to the Free Software Foundation, Inc.,
 -- 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 --
-
---
--- pgfkpart._get_parent_index_def()
---
--- Get index definition string(s) for the parent table
---
-CREATE OR REPLACE FUNCTION pgfkpart._get_parent_index_def (
-  NAME,
-  NAME
-) RETURNS SETOF TEXT
-AS $BODY$
-DECLARE
-  _nspname ALIAS FOR $1;
-  _relname ALIAS FOR $2;
-  _r RECORD;
-  _indexdef TEXT;
-  _constraintdef TEXT;
-BEGIN
-  FOR _r IN SELECT index_name, index_def, index_isunique, index_immediate, index_isexclusion, _constraintdef
-FROM pgfkpart.parentindex
-WHERE table_schema=_nspname AND table_name=_relname
-  LOOP
-    IF _r.index_isunique THEN
-      _indexdef = 'ALTER TABLE ' || _nspname || '.' || _relname || '
-      ADD CONSTRAINT ' || _r.index_name || ' UNIQUE' ||
-      substring (_r.index_def from '\(.*\)');
-      IF NOT _r.index_immediate THEN
-        _indexdef = _indexdef || ' DEFERRABLE INITIALLY DEFERRED';
-      END IF;
-    ELSIF _r.index_isexclusion THEN
-      _indexdef = 'ALTER TABLE ' || _nspname || '.' || _relname || '
-      ADD CONSTRAINT ' || _r.index_name || ' ' || _constraintdef;
-    ELSE
-      _indexdef = _r.index_def;
-    END IF;
-    RETURN NEXT _indexdef;
-  END LOOP;
-
-  RETURN;
-END
-$BODY$ LANGUAGE 'plpgsql';
-
-
---
--- pgfkpart._get_index_def()
---
--- Get index definition string(s) for new partition
---
-CREATE OR REPLACE FUNCTION pgfkpart._get_index_def (
-  NAME,
-  NAME,
-  NAME,
-  NAME,
-  TEXT,
-  BOOL,
-  BOOL,
-  BOOL,
-  TEXT
-) RETURNS TEXT
-AS $BODY$
-DECLARE
-  _nspname ALIAS FOR $1;
-  _relname ALIAS FOR $2;
-  _partname ALIAS FOR $3;
-  _index_name ALIAS FOR $4;
-  _index_def ALIAS FOR $5;
-  _index_isunique ALIAS FOR $6;
-  _index_immediate ALIAS FOR $7;
-  _index_isexclusion ALIAS FOR $8;
-  _constraint_def ALIAS FOR $9;
-  _partindexname NAME;
-  _partindexdef TEXT;
-  _def TEXT;
-BEGIN
-  _partindexname = pgfkpart._get_index_name (_nspname, _relname, _partname, _index_name);
-  IF _index_isunique THEN
-    _partindexdef = 'ALTER TABLE pgfkpart.' || _partname || '
-    ADD CONSTRAINT ' || _partindexname || ' UNIQUE' ||
-    substring (_index_def from '\(.*\)');
-    IF NOT _index_immediate THEN
-      _partindexdef = _partindexdef || ' DEFERRABLE INITIALLY DEFERRED';
-    END IF;
-  ELSIF _index_isexclusion THEN
-    _partindexdef = 'ALTER TABLE pgfkpart.' || _partname || '
-    ADD CONSTRAINT ' || _partindexname || ' ' || _constraint_def;
-  ELSE
-    _partindexdef = regexp_replace(_index_def, 'INDEX .* ON ', 'INDEX ' || _partindexname || ' ON ');
-    _partindexdef = replace(_partindexdef, ' ON ' || _relname, ' ON pgfkpart.' || _partname);      
-  END IF;
-  RETURN _partindexdef;
-END
-$BODY$ LANGUAGE 'plpgsql';
-
-
---
--- pgfkpart._get_index_def()
---
--- Get index definition string(s) for new partition
---
-CREATE OR REPLACE FUNCTION pgfkpart._get_index_def (
-  NAME,
-  NAME,
-  NAME
-) RETURNS SETOF TEXT
-AS $BODY$
-DECLARE
-  _nspname ALIAS FOR $1;
-  _relname ALIAS FOR $2;
-  _partname ALIAS FOR $3;
-  _r RECORD;
-BEGIN
-  FOR _r IN SELECT index_name, index_def, index_isunique, index_immediate, index_isexclusion, constraint_def
-FROM pgfkpart.parentindex
-WHERE table_schema=_nspname AND table_name=_relname
-  LOOP
-    RETURN NEXT pgfkpart._get_index_def (_nspname, _relname, _partname, _r.index_name, _r.index_def, _r.index_isunique, _r.index_immediate, _r.index_isexclusion, _r.constraint_def);
-  END LOOP;
-
-  RETURN;
-END
-$BODY$ LANGUAGE 'plpgsql';
-
-
---
--- pgfkpart._get_index_def()
---
--- Get index definition string(s) for new partition
---
-CREATE OR REPLACE FUNCTION pgfkpart._get_index_def (
-  NAME,
-  NAME,
-  NAME,
-  NAME
-) RETURNS SETOF TEXT
-AS $BODY$
-DECLARE
-  _nspname ALIAS FOR $1;
-  _relname ALIAS FOR $2;
-  _partname ALIAS FOR $3;
-  _indexname ALIAS FOR $4;
-  _r RECORD;
-BEGIN
-  FOR _r IN SELECT index_name, index_def, index_isunique, index_immediate, index_isexclusion, constraint_def
-FROM pgfkpart.parentindex
-WHERE table_schema=_nspname AND table_name=_relname AND index_name=_indexname
-  LOOP
-    RETURN NEXT pgfkpart._get_index_def (_nspname, _relname, _partname, _r.index_name, _r.index_def, _r.index_isunique, _r.index_immediate, _r.index_isexclusion, _r.constraint_def);
-  END LOOP;
-
-  RETURN;
-END
-$BODY$ LANGUAGE 'plpgsql';
-
-
-DO $$
-BEGIN
-  BEGIN
-    ALTER TABLE pgfkpart.parentindex ADD COLUMN index_isexclusion boolean;
-  EXCEPTION
-    WHEN duplicate_column THEN RAISE NOTICE 'column index_isexclusion already exists in parentindex';
-  END;
-END;
-$$;
-UPDATE pgfkpart.parentindex SET index_isexclusion=FALSE WHERE index_isexclusion IS NULL;
-ALTER TABLE pgfkpart.parentindex ALTER COLUMN index_isexclusion SET NOT NULL;
-DO $$
-BEGIN
-  BEGIN
-    ALTER TABLE pgfkpart.parentindex ADD COLUMN constraint_def text;
-  EXCEPTION
-    WHEN duplicate_column THEN RAISE NOTICE 'column constraint_def already exists in parentindex';
-  END;
-END;
-$$;
-
 
 --
 -- pgfkpart.partition_with_fk()
@@ -361,52 +186,76 @@ WHERE t.relname=_partition
 END
 $BODY$ LANGUAGE 'plpgsql';
 
-
 --
--- pgfkpart.dispatch_index()
---
--- Dispatch any nex index in the parent table into the children tables
---
-CREATE OR REPLACE FUNCTION pgfkpart.dispatch_index (
-  NAME,
-  NAME
-) RETURNS void
+-- Fix the buggy triggers
+-- 
+CREATE OR REPLACE FUNCTION pgfkpart._fix_triggers () RETURNS void
 AS $BODY$
 DECLARE
-  _nspname ALIAS FOR $1;
-  _relname ALIAS FOR $2;
+  _returning BOOLEAN;
+  _tmpfilepath TEXT;
   _r RECORD;
-  _p RECORD;
-  _partindexdef TEXT;
+  _returning_text TEXT;
 BEGIN
-  -- Loop on all the new indexes
-  FOR _r IN SELECT _nspname AS table_schema, _relname AS table_name, idxs.indexname AS index_name, idxs.indexdef AS index_def, idx.indisunique AS index_isunique, idx.indisexclusion AS index_isexclusion, idx.indimmediate AS index_immediate, idx.indisprimary AS index_isprimary, pg_get_constraintdef(con.oid, true) AS constraint_def
-  FROM pg_indexes idxs
-  INNER JOIN pg_class cls2 ON (idxs.indexname=cls2.relname)
-  INNER JOIN pg_index idx ON (idx.indexrelid=cls2.oid)
-  INNER JOIN pg_class cls ON (cls.oid=idx.indrelid)
-  INNER JOIN pg_namespace nsp ON (nsp.oid=cls.relnamespace)
-  LEFT JOIN pg_constraint con ON (idxs.indexname=con.conname)
-  WHERE nsp.nspname=_nspname
-    AND cls.relname=_relname
-    AND idx.indisprimary <> true 
-    AND EXISTS (SELECT 1 FROM pgfkpart.partition WHERE table_schema=_nspname AND table_name=_relname) LOOP
-    -- Store the index in pgfkpart.parentindex
-    INSERT INTO pgfkpart.parentindex (table_schema, table_name, index_name, index_def, index_isunique, index_immediate, index_isprimary, index_isexclusion, constraint_def)
-    VALUES (_r.table_schema, _r.table_name, _r.index_name, _r.index_def, _r.index_isunique, _r.index_immediate, _r.index_isprimary, _r.index_isexclusion, _r.constraint_def);
-    -- Remove the index in the parent table
-    IF _r.index_isunique OR _r.index_isexclusion THEN
-      EXECUTE 'ALTER TABLE ' || _nspname || '.' || _relname || ' DROP CONSTRAINT IF EXISTS ' || _r.index_name || ' CASCADE';  
+  FOR _r IN SELECT table_schema, table_name, column_name, foreign_table_schema, foreign_table_name, foreign_column_name
+      FROM pgfkpart.partition
+      WHERE column_name <> foreign_column_name LOOP
+    -- _returning: consider to simplify it is always false
+    _returning := FALSE;
+    -- Set _tmpfilepath
+    _tmpfilepath := '/tmp/pgfkpart_' || _r.table_name;
+    -- Set _returning_text
+    IF _returning
+    THEN _returning_text := '_r';
+    ELSE _returning_text := 'NULL';
     END IF;
-    EXECUTE 'DROP INDEX IF EXISTS ' || _r.index_name || ' CASCADE';
-    -- Add the index in the children tables
-    FOR _p IN SELECT show_partition AS partition_name FROM pgfkpart.show_partition (_nspname, _relname) LOOP
-      _partindexdef = pgfkpart._get_index_def (_nspname, _relname, _p.partition_name, _r.index_name, _r.index_def, _r.index_isunique, _r.index_immediate, _r.index_isexclusion, _r.constraint_def) || ';';
-      RAISE NOTICE 'dispatch_index: %', _partindexdef;
-      EXECUTE _partindexdef;
-    END LOOP;
+    -- Fix the trigger function
+    EXECUTE 'CREATE OR REPLACE FUNCTION ' || _r.table_schema || '.' || _r.table_name || '_child_insert ()
+    RETURNS trigger AS
+    $A$
+    DECLARE
+      _partition NAME;
+      _column_name NAME;
+      _column_value TEXT;
+      _r ' || _r.table_schema || '.' || _r.table_name || '%ROWTYPE;
+    BEGIN
+      -- Get the column name
+      SELECT column_name
+      INTO _column_name
+      FROM pgfkpart.partition
+      WHERE table_schema=$$' || _r.table_schema || '$$ AND table_name=$$' || _r.table_name || '$$;
+      -- Get the column value
+      EXECUTE $$SELECT $1.$$ || _column_name
+      INTO _column_value
+      USING NEW;
+      -- Get the partition name
+      SELECT pgfkpart._get_partition_name($$' || _r.table_name || '$$, _column_value)
+      INTO _partition;
+      -- Check if the partition name has already been created. If not, create it
+      IF NOT EXISTS (SELECT * FROM pg_class t, pg_namespace s
+  WHERE t.relname=_partition
+    AND t.relnamespace=s.oid
+    AND s.nspname=$$pgfkpart$$)
+      THEN EXECUTE $EXEC$SELECT pgfkpart._add_partition_with_fk($$' || _r.table_schema || '$$,
+      $$' || _r.table_name || '$$,
+      $$$EXEC$ || NEW.' || _r.column_name || ' || $EXEC$$$,
+      $$' || _r.column_name || '= $EXEC$ || NEW.' || _r.column_name || ' || $EXEC$$$,
+      $$' || _tmpfilepath || '$$)$EXEC$;
+      END IF;
+      -- Insert in the partition table instead
+      EXECUTE $EXEC$INSERT INTO pgfkpart.$EXEC$ || _partition || $EXEC$ VALUES ($1.*) RETURNING *$EXEC$
+        INTO _r
+        USING NEW;
+      RETURN ' || _returning_text || ';
+    END
+    $A$ LANGUAGE plpgsql';
   END LOOP;
-
-  RETURN;
 END
 $BODY$ LANGUAGE 'plpgsql';
+
+-- Execute _fix_triggers
+SELECT pgfkpart._fix_triggers ();
+
+-- Drop it once it is done
+DROP FUNCTION pgfkpart._fix_triggers();
+

@@ -2,14 +2,14 @@
     "name": "pg_fkpart",
     "abstract": "Table partitioning by foreign key utility for PostgreSQL",
     "description": "pg_fkpart is a PostgreSQL extension to partition tables following a foreign key of a table.",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "maintainer": "Nicolas Relange <nrelange@lemoinetechnologies.com>",
     "license": "gpl_2",
     "provides": {
         "pg_fkpart": {
-            "file": "pg_fkpart--1.3.sql",
+            "file": "pg_fkpart--1.4.sql",
             "docfile": "README.md",
-            "version": "1.3.0",
+            "version": "1.4.0",
             "abstract": "Table partitioning by foreign key extension"
         }
     },

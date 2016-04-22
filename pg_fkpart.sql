@@ -1,4 +1,4 @@
-﻿--
+--
 -- PostgreSQL Partitioning by Foreign Key Utility
 --
 -- Copyright(C) 2012 Uptime Technologies, LLC.
@@ -991,8 +991,8 @@ WHERE t.relname=_partition
   AND s.nspname=$$pgfkpart$$)
     THEN EXECUTE $EXEC$SELECT pgfkpart._add_partition_with_fk($$' || _nspname || '$$,
     $$' || _relname || '$$,
-    $$$EXEC$ || NEW.' || _foreign_column_name || ' || $EXEC$$$,
-    $$' || _column_name || '= $EXEC$ || NEW.' || _foreign_column_name || ' || $EXEC$$$,
+    $$$EXEC$ || NEW.' || _column_name || ' || $EXEC$$$,
+    $$' || _column_name || '= $EXEC$ || NEW.' || _column_name || ' || $EXEC$$$,
     $$' || _tmpfilepath || '$$)$EXEC$;
     END IF;
     -- Insert in the partition table instead
