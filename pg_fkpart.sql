@@ -143,9 +143,8 @@ DECLARE
   _relname ALIAS FOR $2;
   _r RECORD;
   _indexdef TEXT;
-  _constraintdef TEXT;
 BEGIN
-  FOR _r IN SELECT index_name, index_def, index_isunique, index_immediate, index_isexclusion, _constraintdef
+  FOR _r IN SELECT index_name, index_def, index_isunique, index_immediate, index_isexclusion, constraint_def
 FROM pgfkpart.parentindex
 WHERE table_schema=_nspname AND table_name=_relname
   LOOP
@@ -158,7 +157,7 @@ WHERE table_schema=_nspname AND table_name=_relname
       END IF;
     ELSIF _r.index_isexclusion THEN
       _indexdef = 'ALTER TABLE ' || _nspname || '.' || _relname || '
-      ADD CONSTRAINT ' || _r.index_name || ' ' || _constraintdef;
+      ADD CONSTRAINT ' || _r.index_name || ' ' || _r.constraint_def;
     ELSE
       _indexdef = _r.index_def;
     END IF;
