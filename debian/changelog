@@ -1,0 +1,6 @@
+pg-fkpart (1.5.0-1) unstable; urgency=low
+
+  * Initial release. (Closes: #nnnn)
+  * pg-fkpart extension for PostgreSQL
+
+ -- Lionel Schlichter <lschlichter@lemoinetechnologies.com>  Mon, 18 Jul 2016 14:00:00 +0200
