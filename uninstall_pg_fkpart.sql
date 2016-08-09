@@ -24,7 +24,7 @@
 --
 
 -- unpartition all the existing tables first
-SELECT pgfkpart._exec ('pgfkpart.unpartition_with_fk ($$' || table_schema || '$$, $$' || table_name || '$$)')
+SELECT pgfkpart._exec ('select pgfkpart.unpartition_with_fk ($$' || table_schema || '$$, $$' || table_name || '$$)')
 FROM pgfkpart.partition;
 
-DROP SCHEMA pgpart CASCADE;
+DROP SCHEMA pgfkpart CASCADE;
