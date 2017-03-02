@@ -1,4 +1,9 @@
-﻿--
+/* contrib/pg_fkpart/pg_fkpart--1.6.sql */
+
+-- complain if script is sourced in psql, rather than via DROP EXTENSION
+\echo Use "DROP EXTENSION pg_fkpart" to load this file. \quit
+
+--
 -- PostgreSQL Partitioning by Foreign Key Utility
 --
 -- Copyright(C) 2012 Uptime Technologies, LLC.
@@ -17,17 +22,11 @@
 -- with this program; if not, write to the Free Software Foundation, Inc.,
 -- 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 --
-
--- pg_fkpart unpackaged (1.6.0)
-
--- Comment the next line for an upgrade
-CREATE SCHEMA pgfkpart;
+--CREATE SCHEMA pgfkpart; -- Because the schema contains the extension
 
 -- TODO:
 -- manage the tables with a primary key which is not _table_name || 'id'
 
-
-BEGIN;
 
 --
 -- pgfkpart._foreign_key_definitions view
@@ -707,6 +706,8 @@ CREATE TABLE IF NOT EXISTS pgfkpart.partition
 WITH (
   OIDS=FALSE
 );
+SELECT pg_catalog.pg_extension_config_dump('pgfkpart.partition', '');
+SELECT pg_catalog.pg_extension_config_dump('pgfkpart.partition_partitionid_seq', '');
 
 -- Reference to the foreign keys that were 'partitioned'
 -- DROP TABLE IF EXISTS pgfkpart.partforeignkey
@@ -727,26 +728,8 @@ CREATE TABLE IF NOT EXISTS pgfkpart.partforeignkey
 WITH (
   OIDS=FALSE
 );
-
-
-DO $$
-BEGIN
-  BEGIN
-    ALTER TABLE IF EXISTS pgfkpart.parentindex ADD COLUMN index_isexclusion boolean;
-  EXCEPTION
-    WHEN duplicate_column THEN RAISE NOTICE 'column index_isexclusion already exists in parentindex';
-  END;
-END;
-$$;
-DO $$
-BEGIN
-  BEGIN
-    ALTER TABLE IF EXISTS pgfkpart.parentindex ADD COLUMN constraint_def text;
-  EXCEPTION
-    WHEN duplicate_column THEN RAISE NOTICE 'column constraint_def already exists in parentindex';
-  END;
-END;
-$$;
+SELECT pg_catalog.pg_extension_config_dump('pgfkpart.partforeignkey', '');
+SELECT pg_catalog.pg_extension_config_dump('pgfkpart.partforeignkey_partforeignkeyid_seq', '');
 
 -- Table to store the initial parent indexes
 -- DROP TABLE IF EXISTS pgfkpart.parentindex
@@ -768,10 +751,8 @@ CREATE TABLE IF NOT EXISTS pgfkpart.parentindex
 WITH (
   OIDS=FALSE
 );
-
-UPDATE pgfkpart.parentindex SET index_isexclusion=FALSE WHERE index_isexclusion IS NULL;
-ALTER TABLE pgfkpart.parentindex ALTER COLUMN index_isexclusion SET NOT NULL;
-
+SELECT pg_catalog.pg_extension_config_dump('pgfkpart.parentindex', '');
+SELECT pg_catalog.pg_extension_config_dump('pgfkpart.parentindex_parentindexid_seq', '');
 
 CREATE OR REPLACE FUNCTION pgfkpart._get_partition_name (
   NAME,
@@ -1231,5 +1212,3 @@ BEGIN
   RETURN;
 END
 $BODY$ LANGUAGE 'plpgsql';
-
-COMMIT;
