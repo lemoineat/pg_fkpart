@@ -1232,4 +1232,89 @@ BEGIN
 END
 $BODY$ LANGUAGE 'plpgsql';
 
+-- 
+-- pgfkpart.complete_partition()
+--
+-- Complete manually the partition of the already partitioned tables (from the new rows of the foreign table)
+--
+CREATE OR REPLACE FUNCTION pgfkpart.complete_partition () RETURNS void
+AS $BODY$
+BEGIN
+  EXECUTE 'SELECT pgfkpart.complete_partition (table_schema, table_name, NULL)
+  FROM pgfkpart.partition';
+END
+$BODY$
+  LANGUAGE 'plpgsql';
+
+-- 
+-- pgfkpart.complete_partition()
+--
+-- Complete manually the partition of the specified table (from the new rows of the foreign table)
+--
+CREATE OR REPLACE FUNCTION pgfkpart.complete_partition (
+  NAME,
+  NAME
+) RETURNS void
+AS $BODY$
+BEGIN
+  EXECUTE pgfkpart.complete_partition ($1, $2, NULL);
+END
+$BODY$
+  LANGUAGE 'plpgsql';
+
+-- 
+-- pgfkpart.complete_partition()
+--
+-- Complete manually the partition of the specified table (from the new rows of the foreign table)
+--
+CREATE OR REPLACE FUNCTION pgfkpart.complete_partition(NAME, NAME, TEXT)
+  RETURNS void AS
+$BODY$
+DECLARE
+  _nspname ALIAS FOR $1;
+  _relname ALIAS FOR $2;
+  _tmpfilepath ALIAS FOR $3;
+  _column_name NAME;
+  _foreign_column_name NAME;
+  _foreignnspname NAME;
+  _foreignrelname NAME;
+  _r RECORD;
+BEGIN
+  -- Check if the table has already been partitioned
+  SELECT table_schema, table_name, column_name, foreign_table_schema, foreign_table_name, foreign_column_name
+  INTO _r
+  FROM pgfkpart.partition
+  WHERE table_schema=_nspname AND table_name=_relname;
+  IF NOT FOUND
+  THEN 
+    RAISE EXCEPTION 'The table %.% is not partitioned', _nspname, _relname;
+  END IF;
+  -- Get _column_name and _foreign_column_name
+  _column_name := _r.column_name;
+  _foreignnspname := _r.foreign_table_schema;
+  _foreignrelname := _r.foreign_table_name;
+  _foreign_column_name := _r.foreign_column_name;
+  -- Complete _tmpfilepath if unknown
+  IF _tmpfilepath IS NULL
+  THEN _tmpfilepath := '/tmp/pgfkpart_' || _relname;
+  END IF;
+  -- Execute _add_partition on all the rows of _foreignrelname
+  RAISE INFO 'Complete partition of %.%...', _nspname, _relname;
+  EXECUTE 'SELECT pgfkpart._exec(
+    $A$SELECT pgfkpart._add_partition_with_fk($$' || _nspname || '$$,
+    $$' || _relname || '$$,
+    $$$A$ || ' || _foreign_column_name || ' || $A$$$,
+    $$' || _column_name || '=$A$ || ' ||  _foreign_column_name || ' || $A$$$,
+    $$' || _tmpfilepath || '$$)$A$
+  )
+  FROM ' || _foreignnspname || '.' || _foreignrelname || '
+  WHERE NOT EXISTS (SELECT * FROM pg_class t, pg_namespace s
+                    WHERE t.relname=(SELECT pgfkpart._get_partition_name($$' || _relname || '$$, ' || _foreignrelname || '.' || _foreign_column_name || '::text))
+                    AND t.relnamespace=s.oid AND s.nspname=$$pgfkpart$$)';
+  RAISE INFO 'complete_partition of %.% done', _nspname, _relname;
+END
+$BODY$
+LANGUAGE plpgsql VOLATILE
+COST 100;
+
 COMMIT;
